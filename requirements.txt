@@ -1,7 +1,5 @@
 aiogram
 aiohttp
-aiofiles
-aiodns
-aiosqlite
+redis
 yt-dlp
-googletrans
+googletrans-curl

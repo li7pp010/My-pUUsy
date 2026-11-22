@@ -1,282 +1,222 @@
 import asyncio
-import subprocess
-from dataclasses import dataclass
-from pathlib import Path
+import os
+from typing import Final, NamedTuple
 
 import yt_dlp
 
-import bToN
+from cAsh import ffmpeg_semaphore
+
+MAX_FILESIZE: Final = 48 * 1024 * 1024
 
 
-@dataclass
-class DownloadResult:
-    path: Path
-    info: dict
+class TrimSpec(NamedTuple):
+    func: object
+    reply_method: str
+    forced_ext: str | None
 
 
-def _base_options():
+def _extract_entries(url: str) -> list[dict]:
     options = {
         "quiet": True,
         "no_warnings": True,
+        "extract_flat": True,
         "noplaylist": False,
     }
-
-    ffmpeg_path = bToN.get_ffmpeg_path()
-
-    if ffmpeg_path:
-        options["ffmpeg_location"] = ffmpeg_path
-
-    return options
-
-
-def _extract_entries_sync(url):
-    options = _base_options()
-    options["extract_flat"] = True
-
     with yt_dlp.YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=False)
-
-    entries = info.get("entries")
-
-    if entries is not None:
-        return [entry for entry in entries if entry]
-
+    if "entries" in info:
+        return [entry for entry in info["entries"] if entry]
     return [info]
 
 
-async def get_entries(url):
-    return await asyncio.to_thread(
-        _extract_entries_sync,
-        url,
-    )
-
-
-def entry_url(entry):
-    return (
-        entry.get("webpage_url")
-        or entry.get("original_url")
-        or entry.get("url")
-    )
-
-
-def entry_identity(entry):
-    extractor = (
-        entry.get("extractor_key")
-        or entry.get("ie_key")
-        or entry.get("extractor")
-        or ""
-    )
-
-    identifier = entry.get("id")
-
-    if identifier:
-        return f"{extractor}:{identifier}"
-
-    return entry_url(entry) or ""
-
-
-def _find_downloaded_file(directory, info):
-    requested = info.get("requested_downloads") or []
-
-    for item in requested:
-        filepath = item.get("filepath")
-
-        if filepath:
-            path = Path(filepath)
-
-            if path.exists():
-                return path
-
-    with yt_dlp.YoutubeDL(_base_options()) as ydl:
-        prepared = Path(ydl.prepare_filename(info))
-
-    if prepared.exists():
-        return prepared
-
-    identifier = info.get("id")
-
-    if identifier:
-        matches = list(Path(directory).glob(f"{identifier}.*"))
-
-        if matches:
-            return matches[0]
-
-    raise FileNotFoundError("Downloaded file was not found")
-
-
-def _download_sync(url, mode, directory):
-    options = _base_options()
-    options["outtmpl"] = str(Path(directory) / "%(id)s.%(ext)s")
-
-    if mode == bToN.MODE_VOICE:
-        options["format"] = "bestaudio/best"
-    else:
-        options["format"] = "bv+ba/b"
-
+def _download_voice(url: str, base: str) -> tuple[dict, str]:
+    options = {
+        "format": "ba/b",
+        "outtmpl": base + ".%(ext)s",
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "max_filesize": MAX_FILESIZE,
+    }
     with yt_dlp.YoutubeDL(options) as ydl:
         info = ydl.extract_info(url, download=True)
+        path = ydl.prepare_filename(info)
+        if os.path.exists(path):
+            size = os.path.getsize(path)
+            if size > MAX_FILESIZE:
+                raise RuntimeError(f"file too large: {size}")
+        return info, path
 
-    path = _find_downloaded_file(directory, info)
 
-    return DownloadResult(path=path, info=info)
+def _download_media(url: str, base: str) -> tuple[dict, str]:
+    options = {
+        "format": "bv*+ba/b",
+        "outtmpl": base + ".%(ext)s",
+        "quiet": True,
+        "no_warnings": True,
+        "noplaylist": True,
+        "max_filesize": MAX_FILESIZE,
+    }
+    with yt_dlp.YoutubeDL(options) as ydl:
+        info = ydl.extract_info(url, download=True)
+        path = ydl.prepare_filename(info)
+        if os.path.exists(path):
+            size = os.path.getsize(path)
+            if size > MAX_FILESIZE:
+                raise RuntimeError(f"file too large: {size}")
+        return info, path
 
 
-def _prepare_voice_sync(path):
-    output = path.with_name(f"{path.stem}.voice.ogg")
-    ffmpeg_path = bToN.get_ffmpeg_path() or "ffmpeg"
+async def get_entries(url: str) -> list[dict]:
+    return await asyncio.to_thread(_extract_entries, url)
 
-    command = [
-        ffmpeg_path,
-        "-y",
-        "-i",
-        str(path),
-        "-vn",
-        "-c:a",
-        "libopus",
-        "-f",
-        "ogg",
-        str(output),
-    ]
 
-    subprocess.run(
-        command,
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+async def download(url: str, base: str) -> tuple[dict, str]:
+    return await asyncio.to_thread(_download_voice, url, base)
+
+
+async def download_merge(url: str, base: str) -> tuple[dict, str]:
+    return await asyncio.to_thread(_download_media, url, base)
+
+
+async def _run_ffmpeg(*args: str) -> bool:
+    async with ffmpeg_semaphore:
+        process = await asyncio.create_subprocess_exec(
+            "ffmpeg",
+            *args,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await process.wait()
+        return process.returncode == 0
+
+
+def _trim_args(start: str, end: str | None, in_path: str) -> list[str]:
+    args = ["-y", "-ss", start]
+    if end:
+        args.extend(["-to", end])
+    args.extend(["-i", in_path])
+    return args
+
+
+async def to_voice(in_path: str, out_path: str) -> bool:
+    return await _run_ffmpeg(
+        "-y", "-i", in_path, "-vn", "-c:a", "libopus", "-f", "ogg", out_path
     )
 
-    path.unlink()
 
-    final_path = path.with_suffix(".ogg")
-    output.replace(final_path)
+async def trim_voice(
+    in_path: str, out_path: str, start: str, end: str | None = None
+) -> bool:
+    args = _trim_args(start, end, in_path)
+    args.extend(["-c", "copy", "-f", "ogg", out_path])
+    return await _run_ffmpeg(*args)
 
-    return final_path
+
+async def trim_audio(
+    in_path: str, out_path: str, start: str, end: str | None = None
+) -> bool:
+    args = _trim_args(start, end, in_path)
+    args.extend(["-c", "copy", out_path])
+    return await _run_ffmpeg(*args)
 
 
-def _prepare_sticker_sync(path, sticker_options):
-    orientation, flip = sticker_options
-    output = path.with_name(f"{path.stem}.sticker.mp4")
-    filters = []
+async def trim_note(
+    in_path: str, out_path: str, start: str, end: str | None = None
+) -> bool:
+    args = _trim_args(start, end, in_path)
+    args.extend(["-c:v", "libx264", "-c:a", "copy", out_path])
+    return await _run_ffmpeg(*args)
 
-    if orientation == bToN.STICKER_LANDSCAPE:
-        filters.append("transpose=clock:passthrough=landscape")
-    elif orientation == bToN.STICKER_PORTRAIT:
-        filters.append("transpose=clock:passthrough=portrait")
 
-    if flip == bToN.STICKER_FLIP_HORIZONTAL:
+async def trim_video(
+    in_path: str, out_path: str, start: str, end: str | None = None
+) -> bool:
+    args = _trim_args(start, end, in_path)
+    args.extend(["-c", "copy", out_path])
+    return await _run_ffmpeg(*args)
+
+
+def _rotation_filters(settings: dict) -> list[str]:
+    filters: list[str] = []
+    double_rot = settings.get("double_rotate")
+    if settings.get("landscape"):
+        filters.append(
+            "transpose=1,transpose=1,transpose=1" if double_rot else "transpose=1"
+        )
+    elif settings.get("portrait"):
+        filters.append(
+            "transpose=2,transpose=2,transpose=2" if double_rot else "transpose=2"
+        )
+    if settings.get("flip_left") or settings.get("flip_right"):
         filters.append("hflip")
-    elif flip == bToN.STICKER_FLIP_VERTICAL:
-        filters.append("vflip")
+    return filters
 
-    command = [
-        bToN.get_ffmpeg_path() or "ffmpeg",
+
+def _note_crop_expr(crop_align: str, horizontal: bool) -> tuple[str, str]:
+    size = "min(iw\\,ih)"
+    if horizontal and crop_align == "top":
+        return f"iw-{size}", f"(ih-{size})/2"
+    if horizontal and crop_align == "bottom":
+        return "0", f"(ih-{size})/2"
+    if crop_align == "bottom":
+        return f"(iw-{size})/2", f"ih-{size}"
+    if crop_align == "top":
+        return f"(iw-{size})/2", "0"
+    return f"(iw-{size})/2", f"(ih-{size})/2"
+
+
+async def to_note_trim(
+    in_path: str,
+    out_path: str,
+    settings: dict | None = None,
+    start: str = "0",
+    end: str | None = None,
+) -> bool:
+    settings = settings or {}
+    filters = _rotation_filters(settings)
+    crop_align = settings.get("crop_align", "center")
+    horizontal = settings.get("horizontal", False)
+    size = "min(iw\\,ih)"
+    x_expr, y_expr = _note_crop_expr(crop_align, horizontal)
+    filters.append(f"crop={size}:{size}:{x_expr}:{y_expr}")
+    filters.append("scale=640:640,setsar=1/1")
+    args = _trim_args(start, end, in_path)
+    args.extend(["-t", "60", "-vf", ",".join(filters)])
+    if settings.get("muted"):
+        args.append("-an")
+    args.extend(["-c:v", "libx264", "-f", "mp4", out_path])
+    return await _run_ffmpeg(*args)
+
+
+async def to_animation(
+    in_path: str, out_path: str, settings: dict | None = None
+) -> bool:
+    settings = settings or {}
+    filters = _rotation_filters(settings)
+    crop_ratio = settings.get("crop_ratio", "none")
+    if crop_ratio != "none":
+        try:
+            ratio_w, ratio_h = map(int, crop_ratio.split(":"))
+            if ratio_w < ratio_h:
+                crop_w = f"ih*{ratio_w}/{ratio_h}"
+                crop_h = "ih"
+            else:
+                crop_w = "iw"
+                crop_h = f"iw*{ratio_h}/{ratio_w}"
+            filters.append(f"crop={crop_w}:{crop_h}")
+        except Exception:
+            pass
+    filters.append("scale=w=trunc(iw/2)*2:h=trunc(ih/2)*2")
+    args = [
         "-y",
         "-i",
-        str(path),
-        "-map",
-        "0:v:0",
+        in_path,
         "-an",
+        "-c:v",
+        "libx264",
     ]
-
     if filters:
-        command.extend(["-vf", ",".join(filters)])
-
-    command.extend(
-        [
-            "-c:v",
-            "libx264",
-            "-pix_fmt",
-            "yuv420p",
-            "-movflags",
-            "+faststart",
-            str(output),
-        ]
-    )
-
-    try:
-        subprocess.run(
-            command,
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-
-        if not output.is_file() or output.stat().st_size == 0:
-            raise RuntimeError("Sticker conversion produced no output")
-
-    except Exception:
-        output.unlink(missing_ok=True)
-        raise
-
-    path.unlink(missing_ok=True)
-    return output
-
-
-async def download_one(
-    url,
-    mode,
-    directory,
-    sticker_options=(
-        bToN.STICKER_OPTION_NONE,
-        bToN.STICKER_OPTION_NONE,
-    ),
-):
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
-
-    result = await asyncio.to_thread(
-        _download_sync,
-        url,
-        mode,
-        directory,
-    )
-
-    if mode == bToN.MODE_VOICE:
-        voice_path = await asyncio.to_thread(
-            _prepare_voice_sync,
-            result.path,
-        )
-
-        return DownloadResult(
-            path=voice_path,
-            info=result.info,
-        )
-
-    if mode == bToN.MODE_STICKER:
-        sticker_path = await asyncio.to_thread(
-            _prepare_sticker_sync,
-            result.path,
-            sticker_options,
-        )
-
-        return DownloadResult(
-            path=sticker_path,
-            info=result.info,
-        )
-
-    return result
-
-
-async def cut_voice(input_path, output_path, start, end):
-    ffmpeg_path = bToN.get_ffmpeg_path() or "ffmpeg"
-
-    process = await asyncio.create_subprocess_exec(
-        ffmpeg_path,
-        "-y",
-        "-ss",
-        str(start),
-        "-i",
-        str(input_path),
-        "-to",
-        str(end - start),
-        "-c",
-        "copy",
-        str(output_path),
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
-
-    await process.communicate()
-
-    if process.returncode != 0:
-        raise RuntimeError("FFmpeg failed")
+        args.extend(["-vf", ",".join(filters)])
+    args.extend(["-f", "mp4", out_path])
+    return await _run_ffmpeg(*args)

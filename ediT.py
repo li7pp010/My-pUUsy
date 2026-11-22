@@ -1,297 +1,195 @@
+import mimetypes
+import os
 import re
-from pathlib import Path
 
 from aiogram import Bot
-from aiogram.types import FSInputFile
+from aiogram.types import FSInputFile, Message
 
-import Reply
-import bToN
-from yTFMe import cut_voice
+from Reply import EDIT_FAIL_MSG, EDIT_SEPARATOR_MSG, EDIT_START_BIGGER_MSG
+from cAsh import cleanup, safe_delete, user_dir
+from cAsh_Two import FileIdCache
+from TrANs import make_message_name
+from yTFMe import (
+    MAX_FILESIZE,
+    TrimSpec,
+    trim_audio,
+    trim_note,
+    trim_video,
+    trim_voice,
+)
 
-EDIT_STATES = {}
+_EDIT_STATE: dict[int, dict] = {}
 
-
-def _state_key(message):
-    return message.chat.id, message.from_user.id
-
-
-def _set_state(message, voice_message, status_message):
-    EDIT_STATES[_state_key(message)] = (
-        voice_message,
-        status_message,
-    )
-
-
-def _get_state(message):
-    return EDIT_STATES.get(_state_key(message))
-
-
-def _clear_state(message):
-    EDIT_STATES.pop(_state_key(message), None)
-
-
-async def _bot_is_admin(bot: Bot, message):
-    if message.chat.type == "private":
-        return True
-
-    if message.chat.type not in {"group", "supergroup"}:
-        return False
-
-    try:
-        member = await bot.get_chat_member(
-            message.chat.id,
-            bot.id,
-        )
-    except Exception:
-        return False
-
-    return member.status.value in bToN.ADMIN_STATUSES
+MEDIA_FIELDS = ("voice", "audio", "video_note", "animation", "video")
+TRIM_SPECS: dict[str, TrimSpec] = {
+    "voice": TrimSpec(trim_voice, "reply_voice", ".ogg"),
+    "audio": TrimSpec(trim_audio, "reply_audio", None),
+    "video_note": TrimSpec(trim_note, "reply_video_note", ".mp4"),
+    "animation": TrimSpec(trim_video, "reply_animation", ".mp4"),
+    "video": TrimSpec(trim_video, "reply_video", None),
+}
 
 
-def _parse_time(value):
-    if not re.fullmatch(r"\d+(?:\.\d+)?", value):
-        return None
+def _detect_ext(media) -> str:
+    file_name = getattr(media, "file_name", None)
+    if file_name:
+        ext = os.path.splitext(file_name)[1]
+        if ext:
+            return ext
+    mime = getattr(media, "mime_type", None)
+    if mime:
+        guessed = mimetypes.guess_extension(mime.split(";")[0].strip())
+        if guessed:
+            return guessed
+    return ""
 
+
+def _parse_time(value: str) -> float | None:
+    microseconds = 0.0
     if "." in value:
-        whole, fraction = value.split(".", 1)
-
-        if len(fraction) > 2:
+        main_part, micro_part = value.split(".", 1)
+        if not micro_part.isdigit() or int(micro_part) > 60:
             return None
-
-        fraction_value = int(fraction)
-
-        if fraction_value >= 60:
-            return None
-
-        return int(whole) + fraction_value / 100
-
-    return int(value)
-
-
-def _parse_time_with_units(value):
-    parts = value.split(":")
-
-    if len(parts) == 1:
-        return _parse_time(value)
-
-    if len(parts) == 2:
-        first, second = parts
-
-        if not first.isdigit():
-            return None
-
-        seconds = _parse_time(second)
-
-        if seconds is None or seconds >= 60:
-            return None
-
-        return int(first) * 60 + seconds
-
-    if len(parts) == 3:
-        hours, minutes, seconds = parts
-
-        if not hours.isdigit() or not minutes.isdigit():
-            return None
-
-        seconds = _parse_time(seconds)
-
-        if seconds is None:
-            return None
-
-        minutes = int(minutes)
-
-        if minutes >= 60 or seconds >= 60:
-            return None
-
-        return int(hours) * 3600 + minutes * 60 + seconds
-
-    return None
-
-
-def _parse_hour_time(value):
-    match = re.fullmatch(
-        r"(\d+)\.(\d+):(\d+(?:\.\d+)?)",
-        value,
-    )
-
-    if match is None:
+        microseconds = int(micro_part) / 60.0
+    else:
+        main_part = value
+    parts = main_part.split(":")
+    if len(parts) > 3:
         return None
-
-    hours = int(match.group(1))
-    minutes = int(match.group(2))
-    seconds = _parse_time(match.group(3))
-
-    if minutes >= 60 or seconds is None or seconds >= 60:
-        return None
-
-    return hours * 3600 + minutes * 60 + seconds
-
-
-def _parse_single_time(value):
-    if "." in value and ":" in value:
-        hour_time = _parse_hour_time(value)
-
-        if hour_time is not None:
-            return hour_time
-
-    return _parse_time_with_units(value)
-
-
-def _split_duration(text):
-    patterns = (
-        r"\s*(\S+)\s+/\s+(\S+)\s*",
-        r"\s*(\S+)\s+-\s+(\S+)\s*",
-        r"\s*(\S+)\s+(\S+)\s*",
-    )
-
-    for pattern in patterns:
-        match = re.fullmatch(pattern, text)
-
-        if match:
-            return match.group(1), match.group(2)
-
-    return None
-
-
-def _parse_duration(text):
-    values = _split_duration(text)
-
-    if values is None:
-        end = _parse_single_time(text)
-
-        if end is None:
-            return None
-
-        return 0, end
-
-    start = _parse_single_time(values[0])
-    end = _parse_single_time(values[1])
-
-    if start is None or end is None:
-        return None
-
-    return start, end
-
-
-async def _download_voice(bot, voice_message, directory):
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
-
-    path = directory / f"{voice_message.message_id}.ogg"
-
-    await bot.download(
-        voice_message.voice.file_id,
-        destination=path,
-    )
-
-    return path
-
-
-async def _delete_status(status_message):
     try:
-        await status_message.delete()
+        numbers = [int(part) for part in parts]
+    except ValueError:
+        return None
+    if len(numbers) == 3:
+        if numbers[0] > 24 or numbers[1] > 60 or numbers[2] > 60:
+            return None
+        return numbers[0] * 3600 + numbers[1] * 60 + numbers[2] + microseconds
+    if len(numbers) == 2:
+        if numbers[0] > 60 or numbers[1] > 60:
+            return None
+        return numbers[0] * 60 + numbers[1] + microseconds
+    if len(numbers) == 1:
+        if numbers[0] > 60:
+            return None
+        return numbers[0] + microseconds
+    return None
+
+
+def _parse_range(text: str) -> tuple[str, str] | str:
+    cleaned = re.sub(r"(?<=\s)[/\-](?=\s)", " ", text.strip())
+    segments = [seg for seg in cleaned.split() if seg]
+    if len(segments) == 1:
+        end_value = segments[0]
+        if _parse_time(end_value) is None:
+            return "format"
+        return "0", end_value
+    if len(segments) == 2:
+        start_value, end_value = segments
+        start_seconds = _parse_time(start_value)
+        end_seconds = _parse_time(end_value)
+        if start_seconds is None or end_seconds is None:
+            return "format"
+        if start_seconds >= end_seconds:
+            return "bigger"
+        return start_value, end_value
+    return "format"
+
+
+async def set_edit_state(message: Message) -> None:
+    reply_message = await message.reply(EDIT_SEPARATOR_MSG)
+    _EDIT_STATE[message.from_user.id] = {
+        "msg": message.reply_to_message,
+        "prompt": reply_message,
+    }
+
+
+def _media_of(media_message: Message) -> tuple[str, str, object] | None:
+    for field in MEDIA_FIELDS:
+        media = getattr(media_message, field, None)
+        if media:
+            return field, media.file_id, media
+    return None
+
+
+async def _reply_cached(message: Message, media_type: str, file_id: str) -> bool:
+    try:
+        await getattr(message, TRIM_SPECS[media_type].reply_method)(file_id)
+        return True
     except Exception:
-        pass
-
-
-async def start_edit(bot, message):
-    if not await _bot_is_admin(bot, message):
-        return
-
-    voice_message = message.reply_to_message
-
-    if voice_message is None or voice_message.voice is None:
-        return
-
-    status_message = await message.reply(Reply.EDIT_WAITING)
-
-    _set_state(
-        message,
-        voice_message,
-        status_message,
-    )
-
-
-async def handle_duration(bot, message):
-    state = _get_state(message)
-
-    if state is None:
         return False
 
-    duration = _parse_duration(message.text.strip())
 
-    if duration is None:
-        await message.reply(Reply.EDIT_INVALID_FORMAT)
-        _clear_state(message)
+async def handle_pending_edit(
+    message: Message, bot: Bot, file_cache: FileIdCache
+) -> bool:
+    user_id = message.from_user.id
+    if user_id not in _EDIT_STATE:
+        return False
+    state = _EDIT_STATE.pop(user_id)
+    media_message = state["msg"]
+    prompt_message = state["prompt"]
+
+    media_info = _media_of(media_message)
+    if not media_info:
+        return False
+    media_type, file_id, media = media_info
+
+    parsed = _parse_range(message.text)
+    if parsed == "format":
+        await message.reply(EDIT_FAIL_MSG)
         return True
-
-    start, end = duration
-
-    if start > end:
-        await message.reply(Reply.EDIT_REJECTED)
-        _clear_state(message)
+    if parsed == "bigger":
+        await message.reply(EDIT_START_BIGGER_MSG)
         return True
+    start_value, end_value = parsed
 
-    voice_message, status_message = state
+    detail = f"{start_value}:{end_value}"
+    cache_action = f"edit_{media_type}"
 
-    if voice_message.voice is None:
-        await message.reply(Reply.EDIT_ERROR)
-        _clear_state(message)
-        return True
+    cached = await file_cache.get_by_source(file_id, cache_action, detail)
+    if cached:
+        if await _reply_cached(message, media_type, cached):
+            await safe_delete(prompt_message)
+            return True
+        await file_cache.delete_by_source(file_id, cache_action, detail)
 
-    voice_duration = voice_message.voice.duration
+    await safe_delete(prompt_message)
 
-    if (
-        start >= voice_duration
-        or end > voice_duration
-        or start == end
-    ):
-        await message.reply(Reply.EDIT_ERROR)
-        _clear_state(message)
-        return True
+    chat_id = message.chat.id
+    is_private = message.chat.type == "private"
+    workdir = user_dir(chat_id, user_id, bot.id, is_private)
+    source_id = str(media_message.message_id)
 
-    input_path = None
-    output_path = None
+    in_path = os.path.join(workdir, f"{source_id}_{media_type}")
+    out_path = os.path.join(workdir, f"{source_id}_edit")
 
     try:
-        directory = bToN.download_directory(
-            message.from_user.id
+        telegram_file = await bot.get_file(file_id)
+        await bot.download_file(telegram_file.file_path, in_path)
+
+        if os.path.getsize(in_path) > MAX_FILESIZE:
+            await message.reply(EDIT_FAIL_MSG)
+            return True
+
+        spec = TRIM_SPECS[media_type]
+        ext = spec.forced_ext or _detect_ext(media)
+        out_path += ext
+
+        if not await spec.func(in_path, out_path, start_value, end_value):
+            await message.reply(EDIT_FAIL_MSG)
+            return True
+
+        filename = f"{make_message_name(media_message, media)}{ext}"
+        sent = await getattr(message, spec.reply_method)(
+            FSInputFile(out_path, filename=filename)
         )
-
-        input_path = await _download_voice(
-            bot,
-            voice_message,
-            directory,
-        )
-
-        output_path = input_path.with_name(
-            f"{input_path.stem}.cut.ogg"
-        )
-
-        await cut_voice(
-            input_path,
-            output_path,
-            start,
-            end,
-        )
-
-        await _delete_status(status_message)
-
-        await message.reply_voice(
-            FSInputFile(output_path)
-        )
-
+        media_obj = getattr(sent, media_type, None)
+        if media_obj:
+            await file_cache.set_by_source(
+                file_id, cache_action, detail, media_obj.file_id
+            )
     except Exception:
-        await message.reply(Reply.EDIT_ERROR)
-
+        await message.reply(EDIT_FAIL_MSG)
     finally:
-        _clear_state(message)
-
-        for path in (input_path, output_path):
-            if path is not None:
-                try:
-                    path.unlink(missing_ok=True)
-                except Exception:
-                    pass
-
+        cleanup(chat_id, user_id, bot.id, is_private, source_id)
     return True

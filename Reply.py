@@ -1,68 +1,69 @@
-COMMAND_SETTINGS = "ادت"
-COMMAND_BOT = "بوت"
-COMMAND_EDIT = "تعديل"
-COMMAND_AUDIO_START = "بدء"
+BOT_TRIGGER = "بوت"
+ADMIN_COMMAND = "ادت"
+VOICE = "فويس"
+DEFAULT = "افتراضي"
+ANIMATION = "ستيكر"
+NOTE = "فيدنوت"
+MODE_LANG = "لغتي"
+MODE_MSG = "تستطيع تغيير وضع عمل البوت\nمن هنا"
+MODE_DENIED = "ليس مسموح لك القيام\nبهذا التغيير"
 
-MODE_VOICE = "فويس"
-MODE_NORMAL = "نورمال"
-MODE_STICKER = "ستيكر"
+NOTIF_OPEN = "فتح الاشعارات"
+NOTIF_CLOSE = "قفل الاشعارات"
 
-STICKER_LANDSCAPE = "🔄"
-STICKER_PORTRAIT = "🔃"
-STICKER_FLIP_HORIZONTAL = "↪️"
-STICKER_FLIP_VERTICAL = "↩️"
-STICKER_ENABLE = "تفعيل"
-STICKER_DISABLE = "تعطيل"
+PERM_REQUEST_MSG = "يود هذا الطيز استعمال البوت هل\nتسمح بذلك"
+PERM_ALLOW_BTN = "سماح"
+PERM_DENY_BTN = "رفض"
+PERM_ALLOWED_MSG = "تم السماح للطيز باستعمال البوت\nيستطيع ذلك"
+PERM_DENIED_MSG = "تم رفض هذا الطيز من استعمال البوت\nلن يستطيع ذلك"
 
-BUTTON_LANGUAGE = "لغتي"
-BUTTON_CHANGE_LANGUAGE = "تبديل لغتي"
-BUTTON_LANGUAGE_ENGLISH = "eNG"
-BUTTON_LANGUAGE_RUSSIAN = "rUS"
-BUTTON_LANGUAGE_BACK = "عودة"
+DEFAULT_SEND_DOCUMENT = "مستند"
+DEFAULT_SEND_VIDEO = "فيديو"
 
-DYNAMIC_BUTTON_NAMES = ("المنشئ", "المطور", "المالك")
+LANG_ENG = "eNG"
+LANG_RUS = "rUS"
+ENABLE = "تفعيل"
+DISABLE = "تعطيل"
+LANG_BACK = "عودة"
+LANG_MSG = "تستطيع تغيير لغتي من هنا مولاي\nاضغط زرا من الازرار"
 
-SETTINGS_TEXT = "تستطيع تغيير وضع عمل البوت\nمن هنا"
-SETTINGS_UNAUTHORIZED = "ليس مسموح لك القيام\nبهذا التغيير"
+ANIMATION_MSG = "تستطيع تغيير اوضاع {} من هنا مولاي\nاضغط زرا من الازرار"
+ANIMATION_LANDSCAPE = "↪️"
+ANIMATION_PORTRAIT = "↩️"
+ANIMATION_DOUBLE_ROTATE = "🔄 ³×"
+ANIMATION_FLIP = "↔️"
+ANIMATION_CROP_DOWN = "⬇️"
+ANIMATION_CROP_UP = "⬆️"
+ANIMATION_HORIZONTAL = "#️⃣"
+ANIMATION_MUTE = "🧁"
+ANIMATION_DIMENSIONS = "الابعاد"
+ANIMATION_DIM_9_16 = "9:16"
+ANIMATION_DIM_16_9 = "16:9"
 
-STARTUP_TEXT = "اشتغل البوت مرتلخ\nتع امص"
+MEDIA_ANIMATION = "الستيكر"
+MEDIA_VIDEO = "الفيديو"
+MEDIA_DOC = "المستند"
+MEDIA_AUDIO = "الفويس"
+MEDIA_NOTE = "الفيدنوت"
 
-DOWNLOAD_STARTED = "تدلل دامص بعيرك مولاي\nاروح فدوا"
-DOWNLOAD_FAILED = "الرابط غير مدعوم او الموقع مو راضي يتعاون\nالعق عيري يلا"
+NO_AUDIO_MSG = "لا يتوفر صوت بهذا {} مولاي ابوس عيرك\nاعفو عني"
+NOTE_WAIT_MSG = "سيتم ارسال {} ك {} مولاي\nتمهل قليلا"
+WAIT_VOICE_MSG = "سيتم ارسال {} ك {} مولاي\nتمهل قليلا"
 
-AUDIO_START_TEXT = (
-    "يتم البدء بالعمل\n"
-    "على ارسال الصوت ك فويس"
-)
+EDIT_KEYWORDS = ("تعديل", "قص")
+EDIT_SEPARATOR_MSG = "الفواصل الزمنيه مابين التوقيتان\nيقبل / و - ويلزم ان يكون ماقبلهم وبعدهم disTANce"
+EDIT_START_BIGGER_MSG = "مدة البدايه اكبر من مدة النهايه\nمرفوض"
+EDIT_END_TOO_LONG_MSG = "مدة النهاية اقصر من المدة اللتي تريدها\nتعذر التعديل"
+EDIT_FAIL_MSG = "المدة غير مدعومه او ان الفويس غير صالح\nالمعذرة"
 
-AUDIO_START_FAILED = (
-    "الصوت غير مدعوم او لم يتمكن البوت\n"
-    "من التعرف عليه"
-)
+LOADING_TEXT = "كوسي امور كوسي شطور\nكوسي ولهان كوسي عشقان"
+LINK_FAIL_TEXT = "الرابط غير مدعوم او الموقع ميريد يتعاون\nالعق كسي يلا"
+WAIT_TEXT = "انتظر دورك ليس هناك مكان\nشاغر الان"
+BOOT_TEXT = "اشتغل البوت مرتلخ اوف\nالعق عيرك"
 
-EDIT_WAITING = (
-    "الفواصل الزمنيه مابين التوقيتان\n"
-    "يقبل / و - ويلزم ان يكون ماقبلهم وبعدهم مسافة"
-)
+BUTTON_NAMES = ("المنشئ", "المالك", "المطور")
 
-EDIT_INVALID_FORMAT = (
-    "صيغ التعديل\n"
-    "مثلا 00:00 او 0:0 او 00:0\n"
-    "وللساعات 00:00:00\n"
-    "ويقبل الصيغ دون كتابة بداية صفرية للأرقام الفردية"
-)
-
-EDIT_REJECTED = (
-    "مدة البدايه اكبر من مدة النهايه\n"
-    "مرفوض"
-)
-
-EDIT_ERROR = (
-    "المدة غير مدعومه او ان الفويس غير صالح\n"
-    "المعذرة"
-)
-
-ROTATING_RESPONSES = (
+RANDOM_REPLIES = (
     "اهلين وسهلين\nاستاذ/ة",
     "مو ناوي تستعملني مثل البوتات ترى بس اضوج\nينتفخ ديسي",
     "ترى يمكن انطيك بلوك\nواعوفك ملبوس",

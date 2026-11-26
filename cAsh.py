@@ -1,3 +1,7 @@
+import asyncio
+
+ffmpeg_semaphore = asyncio.Semaphore(2)
+
 _states: dict[int, dict[str, str]] = {}
 _delivery: dict[int, str] = {}
 _rotation: dict[tuple[int, str], str] = {}

@@ -1,5 +1,4 @@
 aiogram
 aiohttp
-redis
 yt-dlp
-googletrans-curl
+freetrans

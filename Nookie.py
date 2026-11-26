@@ -1,433 +1,302 @@
-import logging
-from typing import Final
+import asyncio
+import os
+import subprocess
 
-from aiogram import F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, FSInputFile, Message
 
-from Reply import (
-    ANIMATION,
-    ANIMATION_MSG,
-    BUTTON_NAMES,
-    DEFAULT,
-    LANG_MSG,
-    MODE_DENIED,
-    MODE_MSG,
-    NOTE,
-)
-from bToN import (
-    build_animation_markup,
-    build_default_markup,
-    build_dimensions_markup,
-    build_lang_markup,
-    build_mode_markup,
-    build_note_markup,
-    build_specific_markup,
-)
-from cAsh_Two import (
-    AdtStorage,
-    AllowedStorage,
-    AnimationSettings,
-    ButtonCycleStorage,
-    DefaultSettings,
-    FileIdCache,
-    LangCodeStorage,
-    LangStorage,
-    ModeStorage,
-    NoteSettings,
-    NotifStorage,
-    PendingStorage,
-    ReplyCounter,
-)
-from perM import handle_perm_callback
-from poeMs import make_service_cleaner
+import FFMpe
+import Reply
+import TrANs
+import bToN
+import cAsh
+import yTdLp
 
-log = logging.getLogger("voicebot")
-
-OWNER_ACTIONS: Final = frozenset(
-    {
-        "toggle_state",
-        "back_to_animation",
-        "back_to_default",
-        "back",
-        "toggle",
-        "default_menu",
-        "default_toggle",
-        "animation_set",
-        "note_set",
-        "lang",
-        "setlang",
-        "animation_menu",
-        "note_menu",
-        "dimensions_menu",
-        "dim_ratio",
-        "toggle_notif",
-    }
-)
-BACK_ACTIONS: Final = frozenset({"back", "back_to_animation", "back_to_default"})
+MEDIA_NAMES = {
+    "document": Reply.MEDIA_DOCUMENT,
+    "video": Reply.MEDIA_VIDEO,
+    "video_note": Reply.MEDIA_VIDEO_NOTE,
+    "voice": Reply.MEDIA_VOICE,
+}
 
 
-async def get_random_reply_markup(
-    chat_id: int, btn_cycle: ButtonCycleStorage, boot_notice: str
-):
-    index = await btn_cycle.get_index(chat_id)
-    markup = build_specific_markup(index, boot_notice)
-    await btn_cycle.advance(chat_id, len(BUTTON_NAMES))
-    return markup
+async def is_group_admin(message: Message) -> bool:
+    if message.chat.type == "private":
+        return True
+    member = await message.bot.get_chat_member(message.chat.id, message.from_user.id)
+    return member.status in ("administrator", "creator")
 
 
-async def _deny(callback: CallbackQuery) -> None:
-    await callback.answer(MODE_DENIED, show_alert=True)
-
-
-def _parse_data(data: str) -> tuple[str, str | None, int, str]:
-    head, owner_part, mode_key = data.split("|", 2)
-    action, field = head.split(":", 1) if ":" in head else (head, None)
-    return action, field, int(owner_part), mode_key
-
-
-async def _edit_to_main(
-    callback: CallbackQuery,
-    owner_id: int,
-    mode_key: str,
-    modes: ModeStorage,
-    lang: LangStorage,
-    notif: NotifStorage,
-) -> None:
-    await callback.message.edit_text(
-        MODE_MSG,
-        reply_markup=build_mode_markup(
-            await modes.get(mode_key),
-            await lang.get(mode_key),
-            owner_id,
-            mode_key,
-            await notif.get(mode_key),
+async def send_menu(message: Message) -> None:
+    await message.reply(
+        Reply.MENU_TEXT,
+        reply_markup=bToN.main_menu(
+            message.from_user.id, cAsh.get_mode(message.chat.id)
         ),
     )
 
 
-def _markup_for_mode(
-    field: str,
-    settings: dict,
-    owner_id: int,
-    mode_key: str,
-    active: bool,
-):
-    if field == "animation":
-        return build_animation_markup(settings, owner_id, mode_key, active)
-    if field == "note":
-        return build_note_markup(settings, owner_id, mode_key, active)
-    return build_default_markup(settings, owner_id, mode_key, active)
-
-
-def make_handler(
-    modes: ModeStorage,
-    lang: LangStorage,
-    lang_code: LangCodeStorage,
-    animation: AnimationSettings,
-    note: NoteSettings,
-    default: DefaultSettings,
-    notif: NotifStorage,
-    allowed: AllowedStorage,
-    pending: PendingStorage,
-    boot_notice: str,
-):
-    async def on_callback(callback: CallbackQuery):
-        data = callback.data
-        if not data or "|" not in data:
-            return
-        action, field, owner_id, mode_key = _parse_data(data)
-        user_id = callback.from_user.id
-
-        if action == "perm":
-            await handle_perm_callback(
-                callback, field, owner_id, allowed, pending, boot_notice
-            )
-            return
-
-        if callback.message.chat.type == "channel":
-            try:
-                member = await callback.bot.get_chat_member(
-                    callback.message.chat.id, user_id
-                )
-                if member.status not in ("administrator", "creator"):
-                    await _deny(callback)
-                    return
-            except Exception:
-                await _deny(callback)
-                return
-        elif user_id != owner_id and action in OWNER_ACTIONS:
-            await _deny(callback)
-            return
-
-        if action == "toggle_state":
-            if field == "lang":
-                await lang.set(mode_key, not await lang.get(mode_key))
-                await callback.message.edit_reply_markup(
-                    reply_markup=build_lang_markup(
-                        await lang.get(mode_key),
-                        await lang_code.get(mode_key),
-                        owner_id,
-                        mode_key,
-                    )
-                )
-            elif field in {"animation", "note", "default"}:
-                current_mode = await modes.get(mode_key)
-                if current_mode != field:
-                    await modes.set_previous(mode_key, current_mode)
-                    await modes.set(mode_key, field)
-                else:
-                    await modes.set(mode_key, await modes.get_previous(mode_key))
-                new_mode = await modes.get(mode_key)
-                if field == "animation":
-                    settings = await animation.get(mode_key)
-                elif field == "note":
-                    settings = await note.get(mode_key)
-                else:
-                    settings = await default.get(mode_key)
-                await callback.message.edit_reply_markup(
-                    reply_markup=_markup_for_mode(
-                        field, settings, owner_id, mode_key, new_mode == field
-                    )
-                )
-
-        elif action in BACK_ACTIONS:
-            await _edit_to_main(callback, owner_id, mode_key, modes, lang, notif)
-
-        elif action == "toggle":
-            current_mode = await modes.get(mode_key)
-            if current_mode == field:
-                await modes.set(mode_key, await modes.get_previous(mode_key))
-            else:
-                await modes.set_previous(mode_key, current_mode)
-                await modes.set(mode_key, field)
-            await callback.message.edit_reply_markup(
-                reply_markup=build_mode_markup(
-                    await modes.get(mode_key),
-                    await lang.get(mode_key),
-                    owner_id,
-                    mode_key,
-                    await notif.get(mode_key),
-                )
-            )
-
-        elif action == "default_menu":
-            await callback.message.edit_text(
-                ANIMATION_MSG.format(DEFAULT),
-                reply_markup=build_default_markup(
-                    await default.get(mode_key),
-                    owner_id,
-                    mode_key,
-                    await modes.get(mode_key) == "default",
-                ),
-            )
-
-        elif action == "default_toggle":
-            settings = await default.get(mode_key)
-            settings["send_as"] = (
-                "video"
-                if settings.get("send_as", "document") == "document"
-                else "document"
-            )
-            await default.set(mode_key, settings)
-            await callback.message.edit_reply_markup(
-                reply_markup=build_default_markup(
-                    settings,
-                    owner_id,
-                    mode_key,
-                    await modes.get(mode_key) == "default",
-                )
-            )
-
-        elif action == "animation_set":
-            settings = await animation.get(mode_key)
-            if field == "landscape":
-                settings["landscape"] = not settings["landscape"]
-                if settings["landscape"]:
-                    settings["portrait"] = False
-            elif field == "portrait":
-                settings["portrait"] = not settings["portrait"]
-                if settings["portrait"]:
-                    settings["landscape"] = False
-            elif field == "double_rotate":
-                settings["double_rotate"] = not settings.get("double_rotate", False)
-            elif field == "flip_left":
-                settings["flip_left"] = not settings["flip_left"]
-            await animation.set(mode_key, settings)
-            await callback.message.edit_reply_markup(
-                reply_markup=build_animation_markup(
-                    settings,
-                    owner_id,
-                    mode_key,
-                    await modes.get(mode_key) == "animation",
-                )
-            )
-
-        elif action == "note_set":
-            settings = await note.get(mode_key)
-            if field == "landscape":
-                settings["landscape"] = not settings["landscape"]
-                if settings["landscape"]:
-                    settings["portrait"] = False
-            elif field == "portrait":
-                settings["portrait"] = not settings["portrait"]
-                if settings["portrait"]:
-                    settings["landscape"] = False
-            elif field == "double_rotate":
-                settings["double_rotate"] = not settings.get("double_rotate", False)
-            elif field == "flip_left":
-                settings["flip_left"] = not settings["flip_left"]
-            elif field == "crop_down":
-                settings["crop_align"] = (
-                    "center"
-                    if settings.get("crop_align") == "bottom"
-                    else "bottom"
-                )
-            elif field == "crop_up":
-                settings["crop_align"] = (
-                    "center" if settings.get("crop_align") == "top" else "top"
-                )
-            elif field == "muted":
-                settings["muted"] = not settings.get("muted", False)
-            elif field == "horizontal":
-                settings["horizontal"] = not settings.get("horizontal", False)
-            await note.set(mode_key, settings)
-            await callback.message.edit_reply_markup(
-                reply_markup=build_note_markup(
-                    settings,
-                    owner_id,
-                    mode_key,
-                    await modes.get(mode_key) == "note",
-                )
-            )
-
-        elif action == "lang":
-            await callback.message.edit_text(
-                LANG_MSG,
-                reply_markup=build_lang_markup(
-                    await lang.get(mode_key),
-                    await lang_code.get(mode_key),
-                    owner_id,
-                    mode_key,
-                ),
-            )
-
-        elif action == "setlang":
-            await lang_code.set(mode_key, field)
-            await callback.message.edit_reply_markup(
-                reply_markup=build_lang_markup(
-                    await lang.get(mode_key), field, owner_id, mode_key
-                )
-            )
-
-        elif action == "animation_menu":
-            await callback.message.edit_text(
-                ANIMATION_MSG.format(ANIMATION),
-                reply_markup=build_animation_markup(
-                    await animation.get(mode_key),
-                    owner_id,
-                    mode_key,
-                    await modes.get(mode_key) == "animation",
-                ),
-            )
-
-        elif action == "note_menu":
-            await callback.message.edit_text(
-                ANIMATION_MSG.format(NOTE),
-                reply_markup=build_note_markup(
-                    await note.get(mode_key),
-                    owner_id,
-                    mode_key,
-                    await modes.get(mode_key) == "note",
-                ),
-            )
-
-        elif action == "dimensions_menu":
-            await callback.message.edit_reply_markup(
-                reply_markup=build_dimensions_markup(
-                    await animation.get(mode_key), owner_id, mode_key
-                )
-            )
-
-        elif action == "dim_ratio":
-            ratio = field.replace("_", ":")
-            settings = await animation.get(mode_key)
-            settings["crop_ratio"] = (
-                "none" if settings.get("crop_ratio", "none") == ratio else ratio
-            )
-            await animation.set(mode_key, settings)
-            await callback.message.edit_reply_markup(
-                reply_markup=build_dimensions_markup(settings, owner_id, mode_key)
-            )
-
-        elif action == "toggle_notif":
-            notif_active = await notif.get(mode_key)
-            await notif.set(mode_key, not notif_active)
-            new_active = await notif.get(mode_key)
-            await callback.message.edit_reply_markup(
-                reply_markup=build_mode_markup(
-                    await modes.get(mode_key),
-                    await lang.get(mode_key),
-                    owner_id,
-                    mode_key,
-                    new_active,
-                )
-            )
-
-        await callback.answer()
-
-    return on_callback
-
-
-def register(
-    dispatcher,
-    counter: ReplyCounter,
-    modes: ModeStorage,
-    adt: AdtStorage,
-    lang: LangStorage,
-    lang_code: LangCodeStorage,
-    btn_cycle: ButtonCycleStorage,
-    animation: AnimationSettings,
-    note: NoteSettings,
-    default: DefaultSettings,
-    file_cache: FileIdCache,
-    notif: NotifStorage,
-    allowed: AllowedStorage,
-    pending: PendingStorage,
-    boot_notice: str,
-):
-    from Nookie_Two import make_message_handler
-
-    on_message, on_channel_post = make_message_handler(
-        counter,
-        modes,
-        adt,
-        lang,
-        lang_code,
-        btn_cycle,
-        animation,
-        note,
-        default,
-        file_cache,
-        notif,
-        allowed,
-        pending,
-        boot_notice,
+async def send_main_menu(callback: CallbackQuery) -> None:
+    await callback.message.edit_text(
+        Reply.MENU_TEXT,
+        reply_markup=bToN.main_menu(
+            callback.from_user.id, cAsh.get_mode(callback.message.chat.id)
+        ),
     )
-    dispatcher.message.register(on_message, F.text)
-    dispatcher.channel_post.register(on_channel_post, F.text)
-    dispatcher.message.register(make_service_cleaner(notif))
-    dispatcher.channel_post.register(make_service_cleaner(notif))
-    dispatcher.callback_query.register(
-        make_handler(
-            modes,
-            lang,
-            lang_code,
-            animation,
-            note,
-            default,
-            notif,
-            allowed,
-            pending,
-            boot_notice,
+
+
+async def send_sticker_menu(callback: CallbackQuery) -> None:
+    await callback.message.edit_text(
+        Reply.SUB_MENU_TEXT.format(Reply.BUTTON_STICKER),
+        reply_markup=bToN.sticker_menu(
+            callback.message.chat.id, callback.from_user.id
+        ),
+    )
+
+
+async def send_videonote_menu(callback: CallbackQuery) -> None:
+    await callback.message.edit_text(
+        Reply.SUB_MENU_TEXT.format(Reply.BUTTON_VIDEONOTE),
+        reply_markup=bToN.videonote_menu(
+            callback.message.chat.id, callback.from_user.id
+        ),
+    )
+
+
+async def send_default_menu(callback: CallbackQuery) -> None:
+    await callback.message.edit_text(
+        Reply.SUB_MENU_TEXT.format(Reply.BUTTON_DEFAULT),
+        reply_markup=bToN.default_menu(
+            callback.message.chat.id, callback.from_user.id
+        ),
+    )
+
+
+async def send_language_menu(callback: CallbackQuery) -> None:
+    await callback.message.edit_text(
+        Reply.SUB_MENU_LANG_TEXT,
+        reply_markup=bToN.language_menu(
+            callback.message.chat.id, callback.from_user.id
+        ),
+    )
+
+
+async def toggle_mode(callback: CallbackQuery, mode: str) -> None:
+    chat_id = callback.message.chat.id
+    if cAsh.get_mode(chat_id) == mode:
+        cAsh.deactivate(chat_id)
+    else:
+        cAsh.activate(chat_id, mode)
+
+
+async def switch_mode(callback: CallbackQuery, action: str) -> None:
+    cAsh.activate(callback.message.chat.id, action)
+    await callback.message.edit_text(
+        Reply.MENU_TEXT,
+        reply_markup=bToN.main_menu(callback.from_user.id, action),
+    )
+
+
+async def toggle_rotation(callback: CallbackQuery, mode: str, value: str) -> None:
+    cAsh.toggle_rotation(callback.message.chat.id, mode, value)
+    if mode == "sticker":
+        await send_sticker_menu(callback)
+    else:
+        await send_videonote_menu(callback)
+
+
+async def toggle_mirror(callback: CallbackQuery, mode: str) -> None:
+    cAsh.toggle_mirror(callback.message.chat.id, mode)
+    if mode == "sticker":
+        await send_sticker_menu(callback)
+    else:
+        await send_videonote_menu(callback)
+
+
+async def toggle_triple(callback: CallbackQuery, mode: str) -> None:
+    cAsh.toggle_triple(callback.message.chat.id, mode)
+    if mode == "sticker":
+        await send_sticker_menu(callback)
+    else:
+        await send_videonote_menu(callback)
+
+
+def _cleanup(
+    path: str | None, chat_id: int, user_id: int, is_private: bool
+) -> None:
+    if path is not None:
+        TrANs.cleanup(path, chat_id, user_id, is_private)
+    else:
+        TrANs.cleanup_empty(chat_id, user_id, is_private)
+
+
+async def send_animation(message: Message, url: str) -> None:
+    sent = await message.reply(Reply.START_MESSAGE)
+    path = None
+    try:
+        path = await yTdLp.process_animation(
+            url,
+            message.chat.id,
+            message.from_user.id,
+            message.chat.type == "private",
+            cAsh.get_rotation(message.chat.id, "sticker"),
+            cAsh.get_mirror(message.chat.id, "sticker"),
+            cAsh.get_triple(message.chat.id, "sticker"),
         )
-    )
+        await message.reply_animation(FSInputFile(path))
+        await sent.delete()
+    except yTdLp.SizeError:
+        await sent.edit_text(Reply.ERROR_SIZE)
+    except yTdLp.DownloadError:
+        await sent.edit_text(Reply.ERROR_DOWNLOAD)
+    except Exception:
+        await sent.edit_text(Reply.ERROR_PROCESS)
+    finally:
+        _cleanup(
+            path, message.chat.id, message.from_user.id,
+            message.chat.type == "private",
+        )
+
+
+async def send_video_note(message: Message, url: str) -> None:
+    sent = await message.reply(Reply.START_MESSAGE)
+    path = None
+    try:
+        path = await yTdLp.process_video_note(
+            url,
+            message.chat.id,
+            message.from_user.id,
+            message.chat.type == "private",
+            cAsh.get_rotation(message.chat.id, "videonote"),
+            cAsh.get_mirror(message.chat.id, "videonote"),
+            cAsh.get_triple(message.chat.id, "videonote"),
+        )
+        await message.reply_video_note(FSInputFile(path), length=640)
+        await sent.delete()
+    except yTdLp.SizeError:
+        await sent.edit_text(Reply.ERROR_SIZE)
+    except yTdLp.DownloadError:
+        await sent.edit_text(Reply.ERROR_DOWNLOAD)
+    except Exception:
+        await sent.edit_text(Reply.ERROR_PROCESS)
+    finally:
+        _cleanup(
+            path, message.chat.id, message.from_user.id,
+            message.chat.type == "private",
+        )
+
+
+async def send_voice(message: Message, url: str) -> None:
+    sent = await message.reply(Reply.START_MESSAGE)
+    path = None
+    try:
+        path = await yTdLp.process_voice(
+            url,
+            message.chat.id,
+            message.from_user.id,
+            message.chat.type == "private",
+        )
+        await message.reply_voice(FSInputFile(path))
+        await sent.delete()
+    except yTdLp.SizeError:
+        await sent.edit_text(Reply.ERROR_SIZE)
+    except yTdLp.DownloadError:
+        await sent.edit_text(Reply.ERROR_DOWNLOAD)
+    except Exception:
+        await sent.edit_text(Reply.ERROR_PROCESS)
+    finally:
+        _cleanup(
+            path, message.chat.id, message.from_user.id,
+            message.chat.type == "private",
+        )
+
+
+async def send_default(message: Message, url: str) -> None:
+    sent = await message.reply(Reply.START_MESSAGE)
+    path = None
+    try:
+        path = await yTdLp.process_default(
+            url,
+            message.chat.id,
+            message.from_user.id,
+            message.chat.type == "private",
+        )
+        file = FSInputFile(path)
+        if cAsh.get_delivery(message.chat.id) == "video":
+            await message.reply_video(file)
+        else:
+            await message.reply_document(file)
+        await sent.delete()
+    except yTdLp.SizeError:
+        await sent.edit_text(Reply.ERROR_SIZE)
+    except yTdLp.DownloadError:
+        await sent.edit_text(Reply.ERROR_DOWNLOAD)
+    except Exception:
+        await sent.edit_text(Reply.ERROR_PROCESS)
+    finally:
+        _cleanup(
+            path, message.chat.id, message.from_user.id,
+            message.chat.type == "private",
+        )
+
+
+async def translate_text(message: Message) -> None:
+    if TrANs.has_format_chars(message.text):
+        await message.reply(TrANs._normalize(message.text))
+        return
+    lang = cAsh.get_language(message.chat.id)
+    try:
+        translated = await TrANs.translate(message.text, lang)
+    except Exception:
+        return
+    await message.reply(translated)
+
+
+async def send_text_reply(message: Message, developer_ids: list[int]) -> None:
+    text = cAsh.next_text_reply(message.chat.id)
+    developer = cAsh.next_developer(message.chat.id, developer_ids)
+    markup = None
+    if developer is not None:
+        name, dev_id, color = developer
+        markup = bToN.developer_button(name, dev_id, color)
+    await message.reply(text, reply_markup=markup)
+
+
+async def extract_voice(message: Message) -> None:
+    reply = message.reply_to_message
+    source = None
+    name = None
+    for attr, label in MEDIA_NAMES.items():
+        candidate = getattr(reply, attr)
+        if candidate:
+            source = candidate
+            name = label
+            break
+    if source is None:
+        return
+    sent = await message.reply(Reply.VOICE_REPLY_TEMPLATE.format(name))
+    path = None
+    try:
+        target_dir = TrANs.build_dir(
+            message.chat.id, message.from_user.id,
+            message.chat.type == "private",
+        )
+        raw_name = f"{reply.message_id}"
+        raw_path = os.path.join(target_dir, raw_name)
+        await message.bot.download(source, destination=raw_path)
+        output = os.path.join(target_dir, f"{raw_name}.ogg")
+        await asyncio.to_thread(FFMpe.to_voice, raw_path, output)
+        await message.reply_voice(FSInputFile(output))
+        await sent.delete()
+        path = output
+    except subprocess.CalledProcessError:
+        await sent.edit_text(Reply.NO_AUDIO_TEMPLATE.format(name))
+    except yTdLp.SizeError:
+        await sent.edit_text(Reply.ERROR_SIZE)
+    except Exception:
+        await sent.edit_text(Reply.ERROR_PROCESS)
+    finally:
+        if path is not None:
+            TrANs.cleanup(
+                path, message.chat.id, message.from_user.id,
+                message.chat.type == "private",
+            )

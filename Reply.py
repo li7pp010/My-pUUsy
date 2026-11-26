@@ -1,72 +1,48 @@
-BOT_TRIGGER = "بوت"
-ADMIN_COMMAND = "ادت"
+MENU_TRIGGER = "ادت"
+MENU_TEXT = "تستطيع تغيير اوضاع عمل البوت\nمن هنا"
+SUB_MENU_TEXT = "تستطيع تغيير اوضاع {} من هنا\nاضغط زرا من الازرار"
+SUB_MENU_LANG_TEXT = "تستطيع تغيير لغتي من هنا مولاي\nاضغط زرا من الازرار"
+
+BUTTON_STICKER = "ستيكر"
+BUTTON_VIDEONOTE = "فيدنوت"
 VOICE = "فويس"
-DEFAULT = "افتراضي"
-ANIMATION = "ستيكر"
-NOTE = "فيدنوت"
-MODE_LANG = "لغتي"
-MODE_MSG = "تستطيع تغيير وضع عمل البوت\nمن هنا"
-MODE_DENIED = "ليس مسموح لك القيام\nبهذا التغيير"
+BUTTON_DEFAULT = "افتراضي"
+BUTTON_LANGUAGE = "لغتي"
+BUTTON_BACK = "عودة"
+BUTTON_ACTIVATE = "تفعيل"
+BUTTON_DEACTIVATE = "تعطيل"
+BUTTON_DOCUMENT = "مستند"
+BUTTON_VIDEO = "فيديو"
+BUTTON_ROTATE_RIGHT = "↪️"
+BUTTON_ROTATE_LEFT = "↩️"
+BUTTON_TRIPLE = "×³"
+BUTTON_MIRROR = "↔️"
+BUTTON_LANG_EN = "eNG"
+BUTTON_LANG_RU = "rUS"
+BUTTON_LANG_FR = "FrA"
 
-NOTIF_OPEN = "فتح الاشعارات"
-NOTIF_CLOSE = "قفل الاشعارات"
-
-PERM_REQUEST_MSG = "يود هذا الطيز استعمال البوت هل\nتسمح بذلك"
-PERM_ALLOW_BTN = "سماح"
-PERM_DENY_BTN = "رفض"
-PERM_ALLOWED_MSG = "تم السماح للطيز باستعمال البوت\nيستطيع ذلك"
-PERM_DENIED_MSG = "تم رفض هذا الطيز من استعمال البوت\nلن يستطيع ذلك"
-
-DEFAULT_SEND_DOCUMENT = "مستند"
-DEFAULT_SEND_VIDEO = "فيديو"
-
-LANG_ENG = "eNG"
-LANG_RUS = "rUS"
-ENABLE = "تفعيل"
-DISABLE = "تعطيل"
-LANG_BACK = "عودة"
-LANG_MSG = "تستطيع تغيير لغتي من هنا مولاي\nاضغط زرا من الازرار"
-
-ANIMATION_MSG = "تستطيع تغيير اوضاع {} من هنا مولاي\nاضغط زرا من الازرار"
-ANIMATION_LANDSCAPE = "↪️"
-ANIMATION_PORTRAIT = "↩️"
-ANIMATION_DOUBLE_ROTATE = "🔄 ³×"
-ANIMATION_FLIP = "↔️"
-ANIMATION_CROP_DOWN = "⬇️"
-ANIMATION_CROP_UP = "⬆️"
-ANIMATION_HORIZONTAL = "#️⃣"
-ANIMATION_MUTE = "🧁"
-ANIMATION_DIMENSIONS = "الابعاد"
-ANIMATION_DIM_9_16 = "9:16"
-ANIMATION_DIM_16_9 = "16:9"
-
-MEDIA_ANIMATION = "الستيكر"
+VOICE_REPLY_TEMPLATE = "سيتم ارسال {} ك فويس عمري\nتمهل قليلا"
+NO_AUDIO_TEMPLATE = "لا يتوفر صوت بهذا {} مولاي ابوس عيرك\nاعفو عني"
+MEDIA_DOCUMENT = "المستند"
 MEDIA_VIDEO = "الفيديو"
-MEDIA_DOC = "المستند"
-MEDIA_AUDIO = "الفويس"
-MEDIA_NOTE = "الفيدنوت"
+MEDIA_VIDEO_NOTE = "الفيدنوت"
+MEDIA_VOICE = "الفويس"
 
-NO_AUDIO_MSG = "لا يتوفر صوت بهذا {} مولاي ابوس عيرك\nاعفو عني"
-NOTE_WAIT_MSG = "سيتم ارسال {} ك {} مولاي\nتمهل قليلا"
-WAIT_VOICE_MSG = "سيتم ارسال {} ك {} مولاي\nتمهل قليلا"
+START_MESSAGE = "كوسي امور كوسي شطور\nكوسي ولهان كوسي عشقان"
+STARTUP_MESSAGE = "اشتغل البوت مرتلخ اوف\nارضع عيرك"
 
-EDIT_KEYWORDS = ("تعديل", "قص")
-EDIT_SEPARATOR_MSG = "الفواصل الزمنيه مابين التوقيتان\nيقبل / و - ويلزم ان يكون ماقبلهم وبعدهم disTANce"
-EDIT_START_BIGGER_MSG = "مدة البدايه اكبر من مدة النهايه\nمرفوض"
-EDIT_END_TOO_LONG_MSG = "مدة النهاية اقصر من المدة اللتي تريدها\nتعذر التعديل"
-EDIT_FAIL_MSG = "المدة غير مدعومه او ان الفويس غير صالح\nالمعذرة"
+DEVELOPER_NAMES = ("المطور", "المالك", "المنشئ")
+DEVELOPER_COLORS = ("danger", "success", "primary")
 
-LOADING_TEXT = "كوسي امور كوسي شطور\nكوسي ولهان كوسي عشقان"
-LINK_FAIL_TEXT = "الرابط غير مدعوم او الموقع ميريد يتعاون\nالعق كسي يلا"
-WAIT_TEXT = "انتظر دورك ليس هناك مكان\nشاغر الان"
-BOOT_TEXT = "اشتغل البوت مرتلخ اوف\nالعق عيرك"
-
-BUTTON_NAMES = ("المنشئ", "المالك", "المطور")
-
-RANDOM_REPLIES = (
+TEXT_REPLIES = (
     "اهلين وسهلين\nاستاذ/ة",
     "مو ناوي تستعملني مثل البوتات ترى بس اضوج\nينتفخ ديسي",
     "ترى يمكن انطيك بلوك\nواعوفك ملبوس",
     "راح انزع وتنيكني بدال هذا الاستنياج\nشو داضوج",
     "ترى امص عيرك ماتنيكني وتضرط طيزي\nوتفوخ كسي",
 )
+
+ERROR_DOWNLOAD = "الرابط مو صالح لو الموقع ميريد يتعاون\nالعق كسي يلا"
+ERROR_PROCESS = "اكو مشكلة بطبقه الادتر يمكن ديتنايج\nومافارغلنه هوف"
+ERROR_NOT_OWNER = "مو مسموح تستعمل الزر لان مو\nانت المستدعيني"
+ERROR_SIZE = "الملف ثكيل هواي اثكل من عيرك كسي\nيرفض هيج عيورة"

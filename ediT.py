@@ -10,43 +10,68 @@ import Reply
 import TrANs
 import cAsh
 
-CUT_PATTERN = re.compile(r"^(?P<a>[\d:]+)(?:\s*(?:[-/])\s*|\s+)(?P<b>[\d:]+)$")
-
-MEDIA_MAP = {
-    "document": Reply.MEDIA_DOCUMENT,
-    "video": Reply.MEDIA_VIDEO,
-    "video_note": Reply.MEDIA_VIDEO_NOTE,
-    "voice": Reply.MEDIA_VOICE,
-    "animation": Reply.BUTTON_STICKER,
-}
+TIME_TOKEN = r"[\d:]+(?:\.\d+)?"
+CUT_PATTERN = re.compile(
+    rf"^(?P<a>{TIME_TOKEN})(?:(?:\s*(?:[-/])\s*|\s+)(?P<b>{TIME_TOKEN}))?$"
+)
 
 
 def parse_time(value: str) -> float | None:
-    parts = value.split(":")
+    if "." in value:
+        sec_part, ms_part = value.split(".", 1)
+        if not ms_part.isdigit():
+            return None
+        ms_val = int(ms_part)
+        if ms_val < 0 or ms_val > 60:
+            return None
+        extra_sec = 1.0 if ms_val == 60 else ms_val / 1000.0
+    else:
+        sec_part = value
+        extra_sec = 0.0
+
+    parts = sec_part.split(":")
     if not all(part.isdigit() for part in parts):
         return None
+
     if len(parts) == 1:
-        return float(parts[0])
-    if len(parts) == 2:
-        return float(parts[0]) * 60 + float(parts[1])
-    if len(parts) == 3:
-        return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
-    return None
+        sec = int(parts[0])
+        if sec < 0 or sec > 60:
+            return None
+        total = float(sec) + extra_sec
+    elif len(parts) == 2:
+        mins = int(parts[0])
+        sec = int(parts[1])
+        if mins < 0 or mins > 60 or sec < 0 or sec > 60:
+            return None
+        total = float(mins) * 60.0 + float(sec) + extra_sec
+    elif len(parts) == 3:
+        hours = int(parts[0])
+        mins = int(parts[1])
+        sec = int(parts[2])
+        if hours < 0 or hours > 24 or mins < 0 or mins > 60 or sec < 0 or sec > 60:
+            return None
+        total = float(hours) * 3600.0 + float(mins) * 60.0 + float(sec) + extra_sec
+    else:
+        return None
+
+    return total
 
 
 def parse_cut(text: str) -> tuple[float, float] | None:
     match = CUT_PATTERN.match(text)
     if not match:
         return None
-    start = parse_time(match.group("a"))
-    if start is None:
+    first = parse_time(match.group("a"))
+    if first is None:
         return None
     if match.group("b") is None:
-        return 0.0, start
+        if first <= 0:
+            return None
+        return 0.0, first
     end = parse_time(match.group("b"))
     if end is None:
         return None
-    return start, end
+    return first, end
 
 
 def _media_info(reply: Message) -> tuple[str, str, str] | None:
@@ -93,16 +118,21 @@ async def execute_cut(message: Message) -> None:
     )
     if wait is None:
         return
+    media_label = (
+        Reply.BUTTON_STICKER
+        if wait["media_type"] == "animation"
+        else wait["media_name"]
+    )
     parsed = parse_cut(message.text.strip())
     if parsed is None:
         await message.reply(
-            Reply.CUT_INVALID_TEMPLATE.format(wait["media_name"])
+            Reply.CUT_INVALID_TEMPLATE.format(media_label)
         )
         return
     start, end = parsed
     if end <= start:
         await message.reply(
-            Reply.CUT_INVALID_TEMPLATE.format(wait["media_name"])
+            Reply.CUT_INVALID_TEMPLATE.format(media_label)
         )
         return
     cAsh.clear_cut_wait(
@@ -132,13 +162,13 @@ async def execute_cut(message: Message) -> None:
         elif media_type == "video_note":
             await message.reply_video_note(file, length=640)
         elif media_type == "animation":
-            await message.reply_animation(file)
+            await message.reply_sticker(file)
         elif media_type == "voice":
             await message.reply_voice(file)
         else:
             await message.reply_document(file)
     except subprocess.CalledProcessError:
-        await message.reply(Reply.CUT_INVALID_TEMPLATE.format(wait["media_name"]))
+        await message.reply(Reply.CUT_INVALID_TEMPLATE.format(media_label))
     except Exception:
         await message.reply(Reply.ERROR_PROCESS)
     finally:

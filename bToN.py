@@ -1,5 +1,4 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 import Reply
 import cAsh
@@ -75,21 +74,25 @@ def _transform_buttons(
 def main_menu(
     chat_id: int, user_id: int, active: str, thread_id: int | None = None
 ) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    for label, key in BUTTONS:
-        builder.button(
+    mode_buttons = [
+        InlineKeyboardButton(
             text=label,
             callback_data=f"menu:{key}:main:{user_id}",
             style=COLOR_PRIMARY if key == active else COLOR_DANGER,
         )
-    builder.add(_promote_button())
-    builder.button(
+        for label, key in BUTTONS
+    ]
+    lang_button = InlineKeyboardButton(
         text=Reply.BUTTON_LANGUAGE,
         callback_data=f"menu:language:main:{user_id}",
         style=COLOR_SUCCESS if cAsh.get_lang_active(chat_id, thread_id) else COLOR_DANGER,
     )
-    builder.adjust(3, 3)
-    return builder.as_markup()
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            mode_buttons[:3],
+            [mode_buttons[3], _promote_button(), lang_button],
+        ]
+    )
 
 
 def sticker_menu(

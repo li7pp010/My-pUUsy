@@ -138,7 +138,7 @@ async def execute_cut(message: Message) -> None:
         await sent.delete()
         path = output
     except subprocess.CalledProcessError:
-        await sent.edit_text(Reply.CUT_ERROR)
+        await sent.edit_text(Reply.CUT_INVALID_TEMPLATE.format(wait["media_name"]))
     except Exception:
         await sent.edit_text(Reply.ERROR_PROCESS)
     finally:

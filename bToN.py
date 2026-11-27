@@ -22,16 +22,6 @@ def _promote_url() -> str:
     return f"https://t.me/{username}?startgroup=true" if username else "https://t.me/"
 
 
-def _promote_row() -> list[InlineKeyboardButton]:
-    return [
-        InlineKeyboardButton(
-            text=Reply.BUTTON_PROMOTE,
-            url=_promote_url(),
-            style=COLOR_SUCCESS,
-        )
-    ]
-
-
 def _back_button(user_id: int, parent: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(
         text=Reply.BUTTON_BACK,
@@ -107,7 +97,6 @@ def sticker_menu(
                 style=style,
             )
         ],
-        _promote_row(),
     ]
     rows += _transform_buttons(chat_id, user_id, "sticker", thread_id)
     rows.append([_back_button(user_id, "main")])
@@ -128,7 +117,6 @@ def videonote_menu(
                 style=style,
             )
         ],
-        _promote_row(),
     ]
     rows += _transform_buttons(chat_id, user_id, "videonote", thread_id)
     rows.append([_back_button(user_id, "main")])
@@ -154,13 +142,17 @@ def default_menu(
                     style=style,
                 )
             ],
-            _promote_row(),
             [
                 InlineKeyboardButton(
                     text=delivery_label,
                     callback_data=f"default_delivery:{user_id}",
                     style=COLOR_PRIMARY,
-                )
+                ),
+                InlineKeyboardButton(
+                    text=Reply.BUTTON_PROMOTE,
+                    url=_promote_url(),
+                    style=COLOR_SUCCESS,
+                ),
             ],
             [_back_button(user_id, "main")],
         ]
@@ -193,7 +185,6 @@ def language_menu(
                     style=COLOR_PRIMARY if lang == "FrA" else COLOR_DANGER,
                 ),
             ],
-            _promote_row(),
             [
                 InlineKeyboardButton(
                     text=label,

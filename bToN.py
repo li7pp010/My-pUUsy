@@ -8,13 +8,6 @@ COLOR_DANGER = "danger"
 COLOR_SUCCESS = "success"
 DEVELOPER_COLORS = (COLOR_DANGER, COLOR_SUCCESS, COLOR_PRIMARY)
 
-BUTTONS = (
-    (Reply.BUTTON_STICKER, "sticker"),
-    (Reply.BUTTON_VIDEONOTE, "videonote"),
-    (Reply.VOICE, "voice"),
-    (Reply.BUTTON_DEFAULT, "default"),
-)
-
 
 def _promote_url() -> str:
     username = cAsh.get_bot_username()
@@ -71,17 +64,19 @@ def _transform_buttons(
     ]
 
 
+def _mode_button(
+    text: str, key: str, user_id: int, active: str
+) -> InlineKeyboardButton:
+    return InlineKeyboardButton(
+        text=text,
+        callback_data=f"menu:{key}:main:{user_id}",
+        style=COLOR_PRIMARY if key == active else COLOR_DANGER,
+    )
+
+
 def main_menu(
     chat_id: int, user_id: int, active: str, thread_id: int | None = None
 ) -> InlineKeyboardMarkup:
-    mode_buttons = [
-        InlineKeyboardButton(
-            text=label,
-            callback_data=f"menu:{key}:main:{user_id}",
-            style=COLOR_PRIMARY if key == active else COLOR_DANGER,
-        )
-        for label, key in BUTTONS
-    ]
     lang_button = InlineKeyboardButton(
         text=Reply.BUTTON_LANGUAGE,
         callback_data=f"menu:language:main:{user_id}",
@@ -89,8 +84,16 @@ def main_menu(
     )
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            mode_buttons[:3],
-            [mode_buttons[3], _promote_button(), lang_button],
+            [
+                _mode_button(Reply.BUTTON_STICKER, "sticker", user_id, active),
+                _mode_button(Reply.VOICE, "voice", user_id, active),
+                _mode_button(Reply.BUTTON_DEFAULT, "default", user_id, active),
+            ],
+            [_promote_button()],
+            [
+                _mode_button(Reply.BUTTON_VIDEONOTE, "videonote", user_id, active),
+                lang_button,
+            ],
         ]
     )
 

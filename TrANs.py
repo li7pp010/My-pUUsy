@@ -1,6 +1,6 @@
 import os
 
-from googletrans import Translator
+from freetrans import Translator
 
 BASE_DIR = "downloads"
 UPPER_CHARS = set("ATFGUJNMLБИА")

@@ -55,3 +55,16 @@ def to_voice(input_path: str, output_path: str) -> None:
         check=True,
         capture_output=True,
     )
+
+
+def cut_media(input_path: str, output_path: str, start: float, end: float) -> None:
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-i", input_path,
+            "-ss", str(start), "-to", str(end),
+            "-c", "copy",
+            output_path,
+        ],
+        check=True,
+        capture_output=True,
+    )

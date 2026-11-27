@@ -1,13 +1,10 @@
-import asyncio
-
-ffmpeg_semaphore = asyncio.Semaphore(2)
-
 _states: dict[int, dict[str, str]] = {}
 _delivery: dict[int, str] = {}
 _rotation: dict[tuple[int, str], str] = {}
 _mirror: dict[tuple[int, str], bool] = {}
 _triple: dict[tuple[int, str], bool] = {}
 _language: dict[int, str] = {}
+_lang_active: dict[int, bool] = {}
 _reply_index: dict[int, int] = {}
 _dev_name_index: dict[int, int] = {}
 _dev_id_index: dict[int, int] = {}
@@ -20,6 +17,7 @@ DEFAULT_ROTATION = "none"
 DEFAULT_MIRROR = False
 DEFAULT_TRIPLE = False
 DEFAULT_LANGUAGE = "eNG"
+DEFAULT_LANG_ACTIVE = False
 LANGUAGES = ("eNG", "rUS", "FrA")
 
 
@@ -96,6 +94,14 @@ def switch_language(chat_id: int, value: str) -> None:
     index = LANGUAGES.index(value) if value in LANGUAGES else -1
     next_index = (index + 1) % len(LANGUAGES)
     _language[chat_id] = LANGUAGES[next_index]
+
+
+def get_lang_active(chat_id: int) -> bool:
+    return _lang_active.get(chat_id, DEFAULT_LANG_ACTIVE)
+
+
+def toggle_lang_active(chat_id: int) -> None:
+    _lang_active[chat_id] = not get_lang_active(chat_id)
 
 
 def next_text_reply(chat_id: int) -> str:

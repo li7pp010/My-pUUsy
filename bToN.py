@@ -54,7 +54,7 @@ def _transform_buttons(
     ]
 
 
-def main_menu(user_id: int, active: str) -> InlineKeyboardMarkup:
+def main_menu(chat_id: int, user_id: int, active: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for label, key in BUTTONS:
         builder.button(
@@ -65,7 +65,7 @@ def main_menu(user_id: int, active: str) -> InlineKeyboardMarkup:
     builder.button(
         text=Reply.BUTTON_LANGUAGE,
         callback_data=f"menu:language:main:{user_id}",
-        style="primary" if active == "language" else "danger",
+        style="success" if cAsh.get_lang_active(chat_id) else "danger",
     )
     builder.adjust(3, 2)
     return builder.as_markup()
@@ -137,7 +137,7 @@ def default_menu(chat_id: int, user_id: int) -> InlineKeyboardMarkup:
 
 
 def language_menu(chat_id: int, user_id: int) -> InlineKeyboardMarkup:
-    active = cAsh.get_mode(chat_id) == "language"
+    active = cAsh.get_lang_active(chat_id)
     label = Reply.BUTTON_DEACTIVATE if active else Reply.BUTTON_ACTIVATE
     style = "primary" if active else "danger"
     lang = cAsh.get_language(chat_id)

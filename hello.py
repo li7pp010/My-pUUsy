@@ -56,10 +56,16 @@ async def handle_link(message: Message) -> None:
 
 @router.message(F.reply_to_message)
 async def handle_reply_media(message: Message) -> None:
-    if not message.text or message.text.strip() != Reply.VOICE:
+    if not message.text:
         return
+    text = message.text.strip()
     reply = message.reply_to_message
     if not any(getattr(reply, attr, None) for attr in Nookie.MEDIA_NAMES):
+        return
+    if text.split(maxsplit=1)[0] in Reply.CUT_COMMANDS:
+        await Nookie.cut_media(message)
+        return
+    if text != Reply.VOICE:
         return
     await Nookie.extract_voice(message)
 
@@ -72,7 +78,7 @@ async def handle_text(message: Message) -> None:
         return
     if message.reply_to_message is not None:
         return
-    if cAsh.get_mode(message.chat.id) == "language":
+    if cAsh.get_lang_active(message.chat.id):
         await Nookie.translate_text(message)
         return
     await Nookie.send_text_reply(message, NOTICE_IDS)
@@ -179,11 +185,7 @@ async def handle_language_toggle(callback: CallbackQuery) -> None:
     if callback.from_user.id != int(owner_id):
         await callback.answer(Reply.ERROR_NOT_OWNER, show_alert=True)
         return
-    chat_id = callback.message.chat.id
-    if cAsh.get_mode(chat_id) == "language":
-        cAsh.deactivate(chat_id)
-    else:
-        cAsh.activate(chat_id, "language")
+    cAsh.toggle_lang_active(callback.message.chat.id)
     await Nookie.send_language_menu(callback)
     await callback.answer()
 

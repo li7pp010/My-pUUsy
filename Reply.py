@@ -34,6 +34,11 @@ STARTUP_MESSAGE = "اشتغل البوت مرتلخ اوف\nارضع عيرك"
 DEVELOPER_NAMES = ("المطور", "المالك", "المنشئ")
 DEVELOPER_COLORS = ("danger", "success", "primary")
 
+CUT_COMMANDS = ("قص", "تعديل")
+CUT_HINT = "الفواصل الزمنيه مابين التوقيتان\nيقبل / و - ويلزم ان يكون ماقبلهم وبعدهم disTANce"
+CUT_INVALID_TEMPLATE = "المدة غير مدعومه او ان {} غير صالح\nالمعذرة"
+CUT_ERROR = "تعذر القص مولاي"
+
 TEXT_REPLIES = (
     "اهلين وسهلين\nاستاذ/ة",
     "مو ناوي تستعملني مثل البوتات ترى بس اضوج\nينتفخ ديسي",

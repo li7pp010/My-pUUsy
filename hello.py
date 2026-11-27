@@ -32,6 +32,12 @@ MODE_HANDLERS = {
 }
 
 
+async def sync_bot_identity(bot: Bot) -> None:
+    me = await bot.me()
+    if me.username:
+        cAsh.set_bot_username(me.username)
+
+
 async def notify_startup(bot: Bot) -> None:
     for user_id in NOTICE_IDS:
         try:
@@ -212,6 +218,7 @@ async def main() -> None:
     dp = Dispatcher()
     dp.include_router(router)
     polling = asyncio.create_task(dp.start_polling(bot))
+    await sync_bot_identity(bot)
     await notify_startup(bot)
     await polling
 

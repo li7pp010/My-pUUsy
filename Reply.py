@@ -13,6 +13,7 @@ BUTTON_ACTIVATE = "تفعيل"
 BUTTON_DEACTIVATE = "تعطيل"
 BUTTON_DOCUMENT = "مستند"
 BUTTON_VIDEO = "فيديو"
+BUTTON_PROMOTE = "رفع مشرف"
 BUTTON_ROTATE_RIGHT = "↪️"
 BUTTON_ROTATE_LEFT = "↩️"
 BUTTON_TRIPLE = "×³"
@@ -32,7 +33,6 @@ START_MESSAGE = "كوسي امور كوسي شطور\nكوسي ولهان كوس
 STARTUP_MESSAGE = "اشتغل البوت مرتلخ اوف\nارضع عيرك"
 
 DEVELOPER_NAMES = ("المطور", "المالك", "المنشئ")
-DEVELOPER_COLORS = ("danger", "success", "primary")
 
 CUT_COMMANDS = ("قص", "تعديل")
 CUT_HINT = "الفواصل الزمنيه مابين التوقيتان\nيقبل / و - ويلزم ان يكون ماقبلهم وبعدهم disTANce"

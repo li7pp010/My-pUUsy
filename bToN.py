@@ -4,6 +4,11 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import Reply
 import cAsh
 
+COLOR_PRIMARY = "primary"
+COLOR_DANGER = "danger"
+COLOR_SUCCESS = "success"
+DEVELOPER_COLORS = (COLOR_DANGER, COLOR_SUCCESS, COLOR_PRIMARY)
+
 BUTTONS = (
     (Reply.BUTTON_STICKER, "sticker"),
     (Reply.BUTTON_VIDEONOTE, "videonote"),
@@ -12,11 +17,26 @@ BUTTONS = (
 )
 
 
+def _promote_url() -> str:
+    username = cAsh.get_bot_username()
+    return f"https://t.me/{username}?startgroup=true" if username else "https://t.me/"
+
+
+def _promote_row() -> list[InlineKeyboardButton]:
+    return [
+        InlineKeyboardButton(
+            text=Reply.BUTTON_PROMOTE,
+            url=_promote_url(),
+            style=COLOR_SUCCESS,
+        )
+    ]
+
+
 def _back_button(user_id: int, parent: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(
         text=Reply.BUTTON_BACK,
         callback_data=f"menu:back:{parent}:{user_id}",
-        style="success",
+        style=COLOR_SUCCESS,
     )
 
 
@@ -31,24 +51,24 @@ def _transform_buttons(
             InlineKeyboardButton(
                 text=Reply.BUTTON_ROTATE_RIGHT,
                 callback_data=f"{mode}_rotate:right:{user_id}",
-                style="primary" if rotation == "right" else "danger",
+                style=COLOR_PRIMARY if rotation == "right" else COLOR_DANGER,
             ),
             InlineKeyboardButton(
                 text=Reply.BUTTON_ROTATE_LEFT,
                 callback_data=f"{mode}_rotate:left:{user_id}",
-                style="primary" if rotation == "left" else "danger",
+                style=COLOR_PRIMARY if rotation == "left" else COLOR_DANGER,
             ),
             InlineKeyboardButton(
                 text=Reply.BUTTON_TRIPLE,
                 callback_data=f"{mode}_triple:{user_id}",
-                style="primary" if triple else "danger",
+                style=COLOR_PRIMARY if triple else COLOR_DANGER,
             ),
         ],
         [
             InlineKeyboardButton(
                 text=Reply.BUTTON_MIRROR,
                 callback_data=f"{mode}_mirror:{user_id}",
-                style="primary" if mirror else "danger",
+                style=COLOR_PRIMARY if mirror else COLOR_DANGER,
             )
         ],
     ]
@@ -62,12 +82,12 @@ def main_menu(
         builder.button(
             text=label,
             callback_data=f"menu:{key}:main:{user_id}",
-            style="primary" if key == active else "danger",
+            style=COLOR_PRIMARY if key == active else COLOR_DANGER,
         )
     builder.button(
         text=Reply.BUTTON_LANGUAGE,
         callback_data=f"menu:language:main:{user_id}",
-        style="success" if cAsh.get_lang_active(chat_id, thread_id) else "danger",
+        style=COLOR_SUCCESS if cAsh.get_lang_active(chat_id, thread_id) else COLOR_DANGER,
     )
     builder.adjust(3, 2)
     return builder.as_markup()
@@ -78,7 +98,7 @@ def sticker_menu(
 ) -> InlineKeyboardMarkup:
     active = cAsh.get_mode(chat_id, thread_id) == "sticker"
     label = Reply.BUTTON_DEACTIVATE if active else Reply.BUTTON_ACTIVATE
-    style = "primary" if active else "danger"
+    style = COLOR_PRIMARY if active else COLOR_DANGER
     rows = [
         [
             InlineKeyboardButton(
@@ -87,6 +107,7 @@ def sticker_menu(
                 style=style,
             )
         ],
+        _promote_row(),
     ]
     rows += _transform_buttons(chat_id, user_id, "sticker", thread_id)
     rows.append([_back_button(user_id, "main")])
@@ -98,7 +119,7 @@ def videonote_menu(
 ) -> InlineKeyboardMarkup:
     active = cAsh.get_mode(chat_id, thread_id) == "videonote"
     label = Reply.BUTTON_DEACTIVATE if active else Reply.BUTTON_ACTIVATE
-    style = "primary" if active else "danger"
+    style = COLOR_PRIMARY if active else COLOR_DANGER
     rows = [
         [
             InlineKeyboardButton(
@@ -107,6 +128,7 @@ def videonote_menu(
                 style=style,
             )
         ],
+        _promote_row(),
     ]
     rows += _transform_buttons(chat_id, user_id, "videonote", thread_id)
     rows.append([_back_button(user_id, "main")])
@@ -118,7 +140,7 @@ def default_menu(
 ) -> InlineKeyboardMarkup:
     active = cAsh.get_mode(chat_id, thread_id) == "default"
     label = Reply.BUTTON_DEACTIVATE if active else Reply.BUTTON_ACTIVATE
-    style = "primary" if active else "danger"
+    style = COLOR_PRIMARY if active else COLOR_DANGER
     delivery = cAsh.get_delivery(chat_id, thread_id)
     delivery_label = (
         Reply.BUTTON_VIDEO if delivery == "video" else Reply.BUTTON_DOCUMENT
@@ -132,11 +154,12 @@ def default_menu(
                     style=style,
                 )
             ],
+            _promote_row(),
             [
                 InlineKeyboardButton(
                     text=delivery_label,
                     callback_data=f"default_delivery:{user_id}",
-                    style="primary",
+                    style=COLOR_PRIMARY,
                 )
             ],
             [_back_button(user_id, "main")],
@@ -149,7 +172,7 @@ def language_menu(
 ) -> InlineKeyboardMarkup:
     active = cAsh.get_lang_active(chat_id, thread_id)
     label = Reply.BUTTON_DEACTIVATE if active else Reply.BUTTON_ACTIVATE
-    style = "primary" if active else "danger"
+    style = COLOR_PRIMARY if active else COLOR_DANGER
     lang = cAsh.get_language(chat_id, thread_id)
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -157,19 +180,20 @@ def language_menu(
                 InlineKeyboardButton(
                     text=Reply.BUTTON_LANG_EN,
                     callback_data=f"language_set:eNG:{user_id}",
-                    style="primary" if lang == "eNG" else "danger",
+                    style=COLOR_PRIMARY if lang == "eNG" else COLOR_DANGER,
                 ),
                 InlineKeyboardButton(
                     text=Reply.BUTTON_LANG_RU,
                     callback_data=f"language_set:rUS:{user_id}",
-                    style="primary" if lang == "rUS" else "danger",
+                    style=COLOR_PRIMARY if lang == "rUS" else COLOR_DANGER,
                 ),
                 InlineKeyboardButton(
                     text=Reply.BUTTON_LANG_FR,
                     callback_data=f"language_set:FrA:{user_id}",
-                    style="primary" if lang == "FrA" else "danger",
+                    style=COLOR_PRIMARY if lang == "FrA" else COLOR_DANGER,
                 ),
             ],
+            _promote_row(),
             [
                 InlineKeyboardButton(
                     text=label,

@@ -7,14 +7,8 @@ import yt_dlp
 import FFMpe
 import TrANs
 
-MAX_SIZE_BYTES = 48 * 1024 * 1024
-
 
 class DownloadError(Exception):
-    pass
-
-
-class SizeError(Exception):
     pass
 
 
@@ -22,21 +16,16 @@ def _download(url: str, output_dir: str) -> str:
     opts = {
         "format": "bv*+ba/b",
         "outtmpl": os.path.join(output_dir, "%(id)s.%(ext)s"),
-        "max_filesize": MAX_SIZE_BYTES,
     }
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
             downloaded = ydl.prepare_filename(info)
-            if os.path.getsize(downloaded) > MAX_SIZE_BYTES:
-                raise SizeError
             name = TrANs.build_name(info)
             ext = downloaded.rsplit(".", 1)[1]
             target = os.path.join(output_dir, f"{name}.{ext}")
             os.replace(downloaded, target)
             return target
-    except SizeError:
-        raise
     except Exception as exc:
         raise DownloadError from exc
 
@@ -45,21 +34,16 @@ def _download_audio(url: str, output_dir: str) -> str:
     opts = {
         "format": "ba/b",
         "outtmpl": os.path.join(output_dir, "%(id)s.%(ext)s"),
-        "max_filesize": MAX_SIZE_BYTES,
     }
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=True)
             downloaded = ydl.prepare_filename(info)
-            if os.path.getsize(downloaded) > MAX_SIZE_BYTES:
-                raise SizeError
             name = TrANs.build_name(info)
             ext = downloaded.rsplit(".", 1)[1]
             target = os.path.join(output_dir, f"{name}.{ext}")
             os.replace(downloaded, target)
             return target
-    except SizeError:
-        raise
     except Exception as exc:
         raise DownloadError from exc
 

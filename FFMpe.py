@@ -18,9 +18,9 @@ def to_animation(
         filters.append(rotation_filter)
     if mirror:
         filters.append("hflip")
+    filters.append("scale=trunc(iw/2)*2:trunc(ih/2)*2")
     cmd = ["ffmpeg", "-y", "-i", input_path, "-an", "-c:v", "libx264"]
-    if filters:
-        cmd += ["-vf", ",".join(filters)]
+    cmd += ["-vf", ",".join(filters)]
     cmd += ["-f", "mp4", output_path]
     subprocess.run(cmd, check=True, capture_output=True)
 
@@ -51,7 +51,12 @@ def to_video_note(
 
 def to_voice(input_path: str, output_path: str) -> None:
     subprocess.run(
-        ["ffmpeg", "-y", "-i", input_path, "-vn", "-c:a", "libopus", output_path],
+        [
+            "ffmpeg", "-y", "-i", input_path,
+            "-vn", "-c:a", "libopus",
+            "-f", "ogg",
+            output_path,
+        ],
         check=True,
         capture_output=True,
     )

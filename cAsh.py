@@ -10,6 +10,7 @@ _dev_name_index: dict[tuple[int, int], int] = {}
 _dev_id_index: dict[tuple[int, int], int] = {}
 _dev_color_index: dict[tuple[int, int], int] = {}
 _cut_wait: dict[tuple[int, int, int], dict] = {}
+_bot_username: str = ""
 
 DEFAULT_ACTIVE = "sticker"
 DEFAULT_PREVIOUS = "voice"
@@ -24,6 +25,15 @@ LANGUAGES = ("eNG", "rUS", "FrA")
 
 def _thread(thread_id: int | None) -> int:
     return thread_id if thread_id is not None else 0
+
+
+def set_bot_username(username: str) -> None:
+    global _bot_username
+    _bot_username = username
+
+
+def get_bot_username() -> str:
+    return _bot_username
 
 
 def _state(chat_id: int, thread_id: int | None = None) -> dict[str, str]:
@@ -128,9 +138,9 @@ def next_text_reply(chat_id: int, thread_id: int | None = None) -> str:
 
 
 def next_developer(
-    chat_id: int, ids: list[int], thread_id: int | None = None
+    chat_id: int, ids: list[int], colors: tuple[str, ...], thread_id: int | None = None
 ) -> tuple[str, int, str] | None:
-    from Reply import DEVELOPER_COLORS, DEVELOPER_NAMES
+    from Reply import DEVELOPER_NAMES
 
     if not ids:
         return None
@@ -140,10 +150,10 @@ def next_developer(
     color_index = _dev_color_index.get(key, 0)
     name = DEVELOPER_NAMES[name_index % len(DEVELOPER_NAMES)]
     dev_id = ids[id_index % len(ids)]
-    color = DEVELOPER_COLORS[color_index % len(DEVELOPER_COLORS)]
+    color = colors[color_index % len(colors)]
     _dev_name_index[key] = (name_index + 1) % len(DEVELOPER_NAMES)
     _dev_id_index[key] = (id_index + 1) % len(ids)
-    _dev_color_index[key] = (color_index + 1) % len(DEVELOPER_COLORS)
+    _dev_color_index[key] = (color_index + 1) % len(colors)
     return name, dev_id, color
 
 

@@ -163,8 +163,6 @@ async def send_animation(message: Message, url: str) -> None:
         )
         await message.reply_animation(FSInputFile(path))
         await sent.delete()
-    except yTdLp.SizeError:
-        await sent.edit_text(Reply.ERROR_SIZE)
     except yTdLp.DownloadError:
         await sent.edit_text(Reply.ERROR_DOWNLOAD)
     except Exception:
@@ -192,8 +190,6 @@ async def send_video_note(message: Message, url: str) -> None:
         )
         await message.reply_video_note(FSInputFile(path), length=640)
         await sent.delete()
-    except yTdLp.SizeError:
-        await sent.edit_text(Reply.ERROR_SIZE)
     except yTdLp.DownloadError:
         await sent.edit_text(Reply.ERROR_DOWNLOAD)
     except Exception:
@@ -217,8 +213,6 @@ async def send_voice(message: Message, url: str) -> None:
         )
         await message.reply_voice(FSInputFile(path))
         await sent.delete()
-    except yTdLp.SizeError:
-        await sent.edit_text(Reply.ERROR_SIZE)
     except yTdLp.DownloadError:
         await sent.edit_text(Reply.ERROR_DOWNLOAD)
     except Exception:
@@ -232,7 +226,6 @@ async def send_voice(message: Message, url: str) -> None:
 
 async def send_default(message: Message, url: str) -> None:
     sent = await message.reply(Reply.START_MESSAGE)
-    thread_id = message.message_thread_id
     path = None
     try:
         path = await yTdLp.process_default(
@@ -241,14 +234,8 @@ async def send_default(message: Message, url: str) -> None:
             message.from_user.id,
             message.chat.type == "private",
         )
-        file = FSInputFile(path)
-        if cAsh.get_delivery(message.chat.id, thread_id) == "video":
-            await message.reply_video(file)
-        else:
-            await message.reply_document(file)
+        await message.reply_document(FSInputFile(path))
         await sent.delete()
-    except yTdLp.SizeError:
-        await sent.edit_text(Reply.ERROR_SIZE)
     except yTdLp.DownloadError:
         await sent.edit_text(Reply.ERROR_DOWNLOAD)
     except Exception:
@@ -276,7 +263,9 @@ async def translate_text(message: Message) -> None:
 async def send_text_reply(message: Message, developer_ids: list[int]) -> None:
     thread_id = message.message_thread_id
     text = cAsh.next_text_reply(message.chat.id, thread_id)
-    developer = cAsh.next_developer(message.chat.id, developer_ids, thread_id)
+    developer = cAsh.next_developer(
+        message.chat.id, developer_ids, bToN.DEVELOPER_COLORS, thread_id
+    )
     markup = None
     if developer is not None:
         name, dev_id, color = developer
@@ -313,8 +302,6 @@ async def extract_voice(message: Message) -> None:
         path = output
     except subprocess.CalledProcessError:
         await sent.edit_text(Reply.NO_AUDIO_TEMPLATE.format(name))
-    except yTdLp.SizeError:
-        await sent.edit_text(Reply.ERROR_SIZE)
     except Exception:
         await sent.edit_text(Reply.ERROR_PROCESS)
     finally:

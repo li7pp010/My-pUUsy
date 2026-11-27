@@ -108,23 +108,25 @@ async def execute_cut(message: Message) -> None:
     cAsh.clear_cut_wait(
         message.chat.id, message.from_user.id, message.message_thread_id
     )
-    sent = await message.reply(Reply.START_MESSAGE)
-    path = None
+    task_dir = None
     try:
-        target_dir = TrANs.build_dir(
+        task_dir = TrANs.build_task_dir(
             message.chat.id,
             message.from_user.id,
             message.chat.type == "private",
         )
-        raw_name = f"{message.message_id}"
-        raw_path = os.path.join(target_dir, raw_name)
+        media_type = wait["media_type"]
+        ext = wait["ext"]
+        raw_id = TrANs.id_feli("cut_raw", media_type, wait["file_id"], ext)
+        raw_path = os.path.join(task_dir, f"{raw_id}.{ext}")
         await message.bot.download(wait["file_id"], destination=raw_path)
-        output = os.path.join(target_dir, f"{raw_name}_cut.{wait['ext']}")
+        out_id = TrANs.id_feli("cut", media_type, wait["file_id"], start, end, ext)
+        output = os.path.join(task_dir, f"{out_id}.{ext}")
+        cut_fn = FFMpe.cut_animation if media_type == "animation" else FFMpe.cut_media
         await asyncio.to_thread(
-            FFMpe.cut_media, raw_path, output, start, end
+            cut_fn, raw_path, output, start, end
         )
         file = FSInputFile(output)
-        media_type = wait["media_type"]
         if media_type == "video":
             await message.reply_video(file)
         elif media_type == "video_note":
@@ -135,17 +137,14 @@ async def execute_cut(message: Message) -> None:
             await message.reply_voice(file)
         else:
             await message.reply_document(file)
-        await sent.delete()
-        path = output
     except subprocess.CalledProcessError:
-        await sent.edit_text(Reply.CUT_INVALID_TEMPLATE.format(wait["media_name"]))
+        await message.reply(Reply.CUT_INVALID_TEMPLATE.format(wait["media_name"]))
     except Exception:
-        await sent.edit_text(Reply.ERROR_PROCESS)
+        await message.reply(Reply.ERROR_PROCESS)
     finally:
-        if path is not None:
-            TrANs.cleanup(
-                path,
-                message.chat.id,
-                message.from_user.id,
-                message.chat.type == "private",
-            )
+        TrANs.cleanup_task_dir(
+            task_dir,
+            message.chat.id,
+            message.from_user.id,
+            message.chat.type == "private",
+        )

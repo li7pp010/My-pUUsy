@@ -1,7 +1,4 @@
-import hashlib
 import os
-import shutil
-import uuid
 
 from freetrans import Translator
 
@@ -30,11 +27,6 @@ def build_name(info: dict) -> str:
     return name or info.get("id", "video")
 
 
-def id_feli(*parts: object) -> str:
-    raw = "|".join(str(part) for part in parts).encode("utf-8")
-    return hashlib.sha256(raw).hexdigest()
-
-
 def build_dir(chat_id: int, user_id: int, is_private: bool) -> str:
     if is_private:
         path = os.path.join(BASE_DIR, str(user_id))
@@ -42,21 +34,6 @@ def build_dir(chat_id: int, user_id: int, is_private: bool) -> str:
         path = os.path.join(BASE_DIR, str(chat_id).lstrip("-"), str(user_id))
     os.makedirs(path, exist_ok=True)
     return path
-
-
-def build_task_dir(chat_id: int, user_id: int, is_private: bool) -> str:
-    base = build_dir(chat_id, user_id, is_private)
-    task_dir = os.path.join(base, uuid.uuid4().hex)
-    os.makedirs(task_dir, exist_ok=True)
-    return task_dir
-
-
-def cleanup_task_dir(
-    task_dir: str | None, chat_id: int, user_id: int, is_private: bool
-) -> None:
-    if task_dir and os.path.isdir(task_dir):
-        shutil.rmtree(task_dir, ignore_errors=True)
-    cleanup_empty(chat_id, user_id, is_private)
 
 
 def cleanup(file_path: str, chat_id: int, user_id: int, is_private: bool) -> None:

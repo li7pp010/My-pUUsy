@@ -144,19 +144,25 @@ async def toggle_triple(callback: CallbackQuery, mode: str) -> None:
         await send_videonote_menu(callback)
 
 
+def _cleanup(
+    path: str | None, chat_id: int, user_id: int, is_private: bool
+) -> None:
+    if path is not None:
+        TrANs.cleanup(path, chat_id, user_id, is_private)
+    else:
+        TrANs.cleanup_empty(chat_id, user_id, is_private)
+
+
 async def send_animation(message: Message, url: str) -> None:
     sent = await message.reply(Reply.START_MESSAGE)
     thread_id = message.message_thread_id
-    task_dir = None
+    path = None
     try:
-        task_dir = TrANs.build_task_dir(
+        path = await yTdLp.process_animation(
+            url,
             message.chat.id,
             message.from_user.id,
             message.chat.type == "private",
-        )
-        path = await yTdLp.process_animation(
-            url,
-            task_dir,
             cAsh.get_rotation(message.chat.id, "sticker", thread_id),
             cAsh.get_mirror(message.chat.id, "sticker", thread_id),
             cAsh.get_triple(message.chat.id, "sticker", thread_id),
@@ -168,8 +174,8 @@ async def send_animation(message: Message, url: str) -> None:
     except Exception:
         await sent.edit_text(Reply.ERROR_PROCESS)
     finally:
-        TrANs.cleanup_task_dir(
-            task_dir, message.chat.id, message.from_user.id,
+        _cleanup(
+            path, message.chat.id, message.from_user.id,
             message.chat.type == "private",
         )
 
@@ -177,16 +183,13 @@ async def send_animation(message: Message, url: str) -> None:
 async def send_video_note(message: Message, url: str) -> None:
     sent = await message.reply(Reply.START_MESSAGE)
     thread_id = message.message_thread_id
-    task_dir = None
+    path = None
     try:
-        task_dir = TrANs.build_task_dir(
+        path = await yTdLp.process_video_note(
+            url,
             message.chat.id,
             message.from_user.id,
             message.chat.type == "private",
-        )
-        path = await yTdLp.process_video_note(
-            url,
-            task_dir,
             cAsh.get_rotation(message.chat.id, "videonote", thread_id),
             cAsh.get_mirror(message.chat.id, "videonote", thread_id),
             cAsh.get_triple(message.chat.id, "videonote", thread_id),
@@ -198,22 +201,22 @@ async def send_video_note(message: Message, url: str) -> None:
     except Exception:
         await sent.edit_text(Reply.ERROR_PROCESS)
     finally:
-        TrANs.cleanup_task_dir(
-            task_dir, message.chat.id, message.from_user.id,
+        _cleanup(
+            path, message.chat.id, message.from_user.id,
             message.chat.type == "private",
         )
 
 
 async def send_voice(message: Message, url: str) -> None:
     sent = await message.reply(Reply.START_MESSAGE)
-    task_dir = None
+    path = None
     try:
-        task_dir = TrANs.build_task_dir(
+        path = await yTdLp.process_voice(
+            url,
             message.chat.id,
             message.from_user.id,
             message.chat.type == "private",
         )
-        path = await yTdLp.process_voice(url, task_dir)
         await message.reply_voice(FSInputFile(path))
         await sent.delete()
     except yTdLp.DownloadError:
@@ -221,22 +224,22 @@ async def send_voice(message: Message, url: str) -> None:
     except Exception:
         await sent.edit_text(Reply.ERROR_PROCESS)
     finally:
-        TrANs.cleanup_task_dir(
-            task_dir, message.chat.id, message.from_user.id,
+        _cleanup(
+            path, message.chat.id, message.from_user.id,
             message.chat.type == "private",
         )
 
 
 async def send_default(message: Message, url: str) -> None:
     sent = await message.reply(Reply.START_MESSAGE)
-    task_dir = None
+    path = None
     try:
-        task_dir = TrANs.build_task_dir(
+        path = await yTdLp.process_default(
+            url,
             message.chat.id,
             message.from_user.id,
             message.chat.type == "private",
         )
-        path = await yTdLp.process_default(url, task_dir)
         await message.reply_document(FSInputFile(path))
         await sent.delete()
     except yTdLp.DownloadError:
@@ -244,8 +247,8 @@ async def send_default(message: Message, url: str) -> None:
     except Exception:
         await sent.edit_text(Reply.ERROR_PROCESS)
     finally:
-        TrANs.cleanup_task_dir(
-            task_dir, message.chat.id, message.from_user.id,
+        _cleanup(
+            path, message.chat.id, message.from_user.id,
             message.chat.type == "private",
         )
 
@@ -289,26 +292,27 @@ async def extract_voice(message: Message) -> None:
     if source is None:
         return
     sent = await message.reply(Reply.VOICE_REPLY_TEMPLATE.format(name))
-    task_dir = None
+    path = None
     try:
-        task_dir = TrANs.build_task_dir(
+        target_dir = TrANs.build_dir(
             message.chat.id, message.from_user.id,
             message.chat.type == "private",
         )
-        raw_id = TrANs.id_feli("reply_voice_raw", source.file_id)
-        raw_path = os.path.join(task_dir, raw_id)
+        raw_name = f"{reply.message_id}"
+        raw_path = os.path.join(target_dir, raw_name)
         await message.bot.download(source, destination=raw_path)
-        out_id = TrANs.id_feli("reply_voice", source.file_id, "ogg")
-        output = os.path.join(task_dir, f"{out_id}.ogg")
+        output = os.path.join(target_dir, f"{raw_name}.ogg")
         await asyncio.to_thread(FFMpe.to_voice, raw_path, output)
         await message.reply_voice(FSInputFile(output))
         await sent.delete()
+        path = output
     except subprocess.CalledProcessError:
         await sent.edit_text(Reply.NO_AUDIO_TEMPLATE.format(name))
     except Exception:
         await sent.edit_text(Reply.ERROR_PROCESS)
     finally:
-        TrANs.cleanup_task_dir(
-            task_dir, message.chat.id, message.from_user.id,
-            message.chat.type == "private",
-        )
+        if path is not None:
+            TrANs.cleanup(
+                path, message.chat.id, message.from_user.id,
+                message.chat.type == "private",
+            )

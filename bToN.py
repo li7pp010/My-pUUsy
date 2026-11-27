@@ -1,4 +1,5 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 import Reply
 import cAsh
@@ -7,6 +8,13 @@ COLOR_PRIMARY = "primary"
 COLOR_DANGER = "danger"
 COLOR_SUCCESS = "success"
 DEVELOPER_COLORS = (COLOR_DANGER, COLOR_SUCCESS, COLOR_PRIMARY)
+
+BUTTONS = (
+    (Reply.BUTTON_STICKER, "sticker"),
+    (Reply.BUTTON_VIDEONOTE, "videonote"),
+    (Reply.VOICE, "voice"),
+    (Reply.BUTTON_DEFAULT, "default"),
+)
 
 
 def _promote_url() -> str:
@@ -64,38 +72,24 @@ def _transform_buttons(
     ]
 
 
-def _mode_button(
-    text: str, key: str, user_id: int, active: str
-) -> InlineKeyboardButton:
-    return InlineKeyboardButton(
-        text=text,
-        callback_data=f"menu:{key}:main:{user_id}",
-        style=COLOR_PRIMARY if key == active else COLOR_DANGER,
-    )
-
-
 def main_menu(
     chat_id: int, user_id: int, active: str, thread_id: int | None = None
 ) -> InlineKeyboardMarkup:
-    lang_button = InlineKeyboardButton(
+    builder = InlineKeyboardBuilder()
+    for label, key in BUTTONS:
+        builder.button(
+            text=label,
+            callback_data=f"menu:{key}:main:{user_id}",
+            style=COLOR_PRIMARY if key == active else COLOR_DANGER,
+        )
+    builder.add(_promote_button())
+    builder.button(
         text=Reply.BUTTON_LANGUAGE,
         callback_data=f"menu:language:main:{user_id}",
         style=COLOR_SUCCESS if cAsh.get_lang_active(chat_id, thread_id) else COLOR_DANGER,
     )
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                _mode_button(Reply.BUTTON_STICKER, "sticker", user_id, active),
-                _mode_button(Reply.VOICE, "voice", user_id, active),
-                _mode_button(Reply.BUTTON_DEFAULT, "default", user_id, active),
-            ],
-            [_promote_button()],
-            [
-                _mode_button(Reply.BUTTON_VIDEONOTE, "videonote", user_id, active),
-                lang_button,
-            ],
-        ]
-    )
+    builder.adjust(3, 2, 1)
+    return builder.as_markup()
 
 
 def sticker_menu(

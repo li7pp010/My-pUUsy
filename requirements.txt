@@ -1,4 +1,4 @@
-aiogram
 aiohttp
+aiogram
 yt-dlp
-freetrans
+freetrans-py

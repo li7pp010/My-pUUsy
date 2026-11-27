@@ -102,11 +102,17 @@ async def toggle_mode(callback: CallbackQuery, mode: str) -> None:
 
 async def switch_mode(callback: CallbackQuery, action: str) -> None:
     thread_id = callback.message.message_thread_id
-    cAsh.activate(callback.message.chat.id, action, thread_id)
+    chat_id = callback.message.chat.id
+    if cAsh.get_mode(chat_id, thread_id) == action:
+        cAsh.deactivate(chat_id, thread_id)
+        active = cAsh.get_mode(chat_id, thread_id)
+    else:
+        cAsh.activate(chat_id, action, thread_id)
+        active = action
     await callback.message.edit_text(
         Reply.MENU_TEXT,
         reply_markup=bToN.main_menu(
-            callback.message.chat.id, callback.from_user.id, action, thread_id
+            chat_id, callback.from_user.id, active, thread_id
         ),
     )
 

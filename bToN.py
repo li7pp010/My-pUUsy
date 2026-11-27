@@ -22,6 +22,14 @@ def _promote_url() -> str:
     return f"https://t.me/{username}?startgroup=true" if username else "https://t.me/"
 
 
+def _promote_button() -> InlineKeyboardButton:
+    return InlineKeyboardButton(
+        text=Reply.BUTTON_PROMOTE,
+        url=_promote_url(),
+        style=COLOR_SUCCESS,
+    )
+
+
 def _back_button(user_id: int, parent: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(
         text=Reply.BUTTON_BACK,
@@ -74,12 +82,13 @@ def main_menu(
             callback_data=f"menu:{key}:main:{user_id}",
             style=COLOR_PRIMARY if key == active else COLOR_DANGER,
         )
+    builder.add(_promote_button())
     builder.button(
         text=Reply.BUTTON_LANGUAGE,
         callback_data=f"menu:language:main:{user_id}",
         style=COLOR_SUCCESS if cAsh.get_lang_active(chat_id, thread_id) else COLOR_DANGER,
     )
-    builder.adjust(3, 2)
+    builder.adjust(3, 2, 1)
     return builder.as_markup()
 
 
@@ -147,12 +156,7 @@ def default_menu(
                     text=delivery_label,
                     callback_data=f"default_delivery:{user_id}",
                     style=COLOR_PRIMARY,
-                ),
-                InlineKeyboardButton(
-                    text=Reply.BUTTON_PROMOTE,
-                    url=_promote_url(),
-                    style=COLOR_SUCCESS,
-                ),
+                )
             ],
             [_back_button(user_id, "main")],
         ]

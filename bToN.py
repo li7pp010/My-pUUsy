@@ -88,7 +88,7 @@ def main_menu(
         callback_data=f"menu:language:main:{user_id}",
         style=COLOR_SUCCESS if cAsh.get_lang_active(chat_id, thread_id) else COLOR_DANGER,
     )
-    builder.adjust(3, 2, 1)
+    builder.adjust(3, 3)
     return builder.as_markup()
 
 

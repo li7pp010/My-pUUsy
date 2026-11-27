@@ -10,7 +10,7 @@ import Reply
 import TrANs
 import cAsh
 
-CUT_PATTERN = re.compile(r"^(?P<a>[\d:]+)(?:\s+[-/\s]\s+(?P<b>[\d:]+))?$")
+CUT_PATTERN = re.compile(r"^(?P<a>[\d:]+)(?:\s*(?:[-/])\s*|\s+)(?P<b>[\d:]+)$")
 
 MEDIA_MAP = {
     "document": Reply.MEDIA_DOCUMENT,

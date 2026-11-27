@@ -1,5 +1,6 @@
 import asyncio
 import os
+import subprocess
 import tempfile
 
 import yt_dlp
@@ -9,6 +10,10 @@ import TrANs
 
 
 class DownloadError(Exception):
+    pass
+
+
+class ProcessError(Exception):
     pass
 
 
@@ -48,6 +53,13 @@ def _download_audio(url: str, output_dir: str) -> str:
         raise DownloadError from exc
 
 
+async def _run_ffmpeg(func, *args) -> None:
+    try:
+        await asyncio.to_thread(func, *args)
+    except subprocess.CalledProcessError as exc:
+        raise ProcessError from exc
+
+
 async def process_animation(
     url: str, chat_id: int, user_id: int, is_private: bool,
     rotation: str, mirror: bool, triple: bool,
@@ -56,8 +68,8 @@ async def process_animation(
         target_dir = TrANs.build_dir(chat_id, user_id, is_private)
         downloaded = await asyncio.to_thread(_download, url, tmp)
         base = os.path.splitext(os.path.basename(downloaded))[0]
-        output = os.path.join(target_dir, f"{base}_anim.mp4")
-        await asyncio.to_thread(
+        output = os.path.join(target_dir, f"{base}.mp4")
+        await _run_ffmpeg(
             FFMpe.to_animation, downloaded, output, rotation, mirror, triple
         )
         return output
@@ -71,8 +83,8 @@ async def process_video_note(
         target_dir = TrANs.build_dir(chat_id, user_id, is_private)
         downloaded = await asyncio.to_thread(_download, url, tmp)
         base = os.path.splitext(os.path.basename(downloaded))[0]
-        output = os.path.join(target_dir, f"{base}_note.mp4")
-        await asyncio.to_thread(
+        output = os.path.join(target_dir, f"{base}.mp4")
+        await _run_ffmpeg(
             FFMpe.to_video_note, downloaded, output, rotation, mirror, triple
         )
         return output
@@ -85,8 +97,8 @@ async def process_voice(
         target_dir = TrANs.build_dir(chat_id, user_id, is_private)
         downloaded = await asyncio.to_thread(_download_audio, url, tmp)
         base = os.path.splitext(os.path.basename(downloaded))[0]
-        output = os.path.join(target_dir, f"{base}_voice.ogg")
-        await asyncio.to_thread(FFMpe.to_voice, downloaded, output)
+        output = os.path.join(target_dir, f"{base}.ogg")
+        await _run_ffmpeg(FFMpe.to_voice, downloaded, output)
         return output
 
 
